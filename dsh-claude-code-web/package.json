@@ -1,0 +1,34 @@
+{
+  "name": "dsh-claude-code-web",
+  "version": "0.1.0",
+  "description": "DSH 插件：Claude Code 原生工作台（宿主内嵌 server.cjs 的 HTTP/WebSocket 面 + 客户端全局入口：侧边栏底部按钮 + shell.overlay 悬浮面板，跟随 DSH 主题）",
+  "type": "module",
+  "main": "lib/index.js",
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "exports": {
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "server.cjs",
+    "DEPLOY.md"
+  ],
+  "license": "MIT"
+}
