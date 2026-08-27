@@ -1,33 +1,43 @@
 # DSH Plugin
 
-DeepSeek Harness（DSH）的插件集合，通过 Plugin 机制为 DSH 提供额外能力。
+> DeepSeek Harness（DSH）的插件集合，通过 Plugin 机制为 DSH 提供额外能力。
 
-## Plugins
+## 项目简介
+
+`dsh-plugin` 用于集中维护面向 DSH 的独立插件。
+
+每个插件拥有独立的目录、代码和文档，负责实现具体功能；根目录 README 仅负责介绍本仓库及插件列表。
+
+## 插件列表
 
 | Plugin | Description |
 | --- | --- |
 | [dsh-claude-code-web](./dsh-claude-code-web) | 将 Claude Code Web 工作台集成到 DSH |
 
-## Repository Structure
+## 仓库结构
 
 ```text
 dsh-plugin/
 ├── README.md
+│
 ├── dsh-claude-code-web/
 │   ├── README.md
 │   ├── INSTALL.md
 │   ├── DEPLOY.md
 │   └── ...
+│
 └── ...
 ```
 
-每个插件使用独立目录，并由插件目录下的 `README.md` 负责维护该插件的详细说明。
+插件的具体功能、架构、安装、配置和使用方式，请进入对应插件目录查看其 `README.md`。
 
-## Contributing
+## 新增插件
 
-欢迎提交新的 DSH Plugin。
+新增 DSH Plugin 时，请：
 
-新增插件时，请为插件创建独立目录，并提供对应的 `README.md`，用于说明插件的功能、安装、配置和使用方式。
+1. 创建独立的插件目录。
+2. 在插件目录中提供 `README.md`。
+3. 在根目录的 **插件列表** 中增加对应条目。
 
 ## License
 
