@@ -313,6 +313,7 @@ function snapshot() {
   return {
     active: (activeId && runtime.has(activeId)) ? plainSession(runtime.get(activeId)) : null,
     workspaces: workspaces,
+    current: workspaceDir,
   }
 }
 
@@ -620,7 +621,12 @@ function sendMessage(args) {
   const permissionMode = a.permissionMode || 'default'
   let r = activeId && runtime.has(activeId) ? runtime.get(activeId) : null
   if (!r) {
-    r = newRecord(permissionMode)
+    let cwd = null
+    if (a.cwd && typeof a.cwd === 'string') {
+      const abs = path.resolve(a.cwd)
+      try { if (fs.statSync(abs).isDirectory()) cwd = abs } catch (e) {}
+    }
+    r = newRecord(permissionMode, cwd)
     runtime.set(r.key, r)
     activeId = r.key
   }
@@ -1200,7 +1206,7 @@ function wsDelete(p) {
   }
   saveWsRegistry()
   markDirty()
-  return { ok: true }
+  return { ok: true, current: workspaceDir }
 }
 
 function sessionCwd(sid) {
