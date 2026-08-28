@@ -57,6 +57,8 @@ window.__ModuleLoader__.load({
 .ccw-ws { margin-bottom:6px; }
 .ccw-ws-head { display:flex; align-items:center; gap:4px; cursor:pointer; padding:4px 6px; border-radius:6px; font-weight:600; }
 .ccw-ws-head:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
+.ccw-ws-head.current { background:rgba(79,140,255,.14); }
+.ccw-ws-cur { width:7px; height:7px; border-radius:50%; background:#4f8cff; flex:none; }
 .ccw-ws-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ccw-srow { display:flex; align-items:center; gap:6px; padding:5px 6px 5px 18px; border-radius:6px; cursor:pointer; }
 .ccw-srow:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
@@ -368,7 +370,7 @@ window.__ModuleLoader__.load({
     // ------------------------------------------------------------------
     // 侧边栏
     // ------------------------------------------------------------------
-    function Sidebar({ snap, collapsed, toggleWs, onNew, onSwitch, onAddWs, onRenameSession, onDeleteSession, onRenameWs, onDeleteWs, width, pickingWs }) {
+    function Sidebar({ snap, collapsed, toggleWs, onNew, onSwitch, onAddWs, onRenameSession, onDeleteSession, onRenameWs, onDeleteWs, width, pickingWs, currentWs, onSelectWs }) {
       const ws = (snap && snap.workspaces) || [];
       return React.createElement("div", { className: "ccw-sidebar", style: { width: width } },
         React.createElement("button", { className: "ccw-btn primary", style: { width: "100%", marginBottom: 8 }, onClick: onNew }, "＋ 新会话"),
@@ -376,11 +378,17 @@ window.__ModuleLoader__.load({
         ws.map(function (w) {
           const open = !collapsed.has(w.path);
           return React.createElement("div", { className: "ccw-ws", key: w.path },
-            React.createElement("div", { className: "ccw-ws-head" },
-              React.createElement("span", { style: { cursor: "pointer", flex: 1, display: "flex", alignItems: "center", gap: 4, minWidth: 0 }, onClick: () => toggleWs(w.path) },
+            React.createElement("div", { className: "ccw-ws-head" + (currentWs === w.path ? " current" : "") },
+              React.createElement("span", { style: { cursor: "pointer" }, title: open ? "收起" : "展开", onClick: () => toggleWs(w.path) },
                 React.createElement("span", null, open ? "▾" : "▸"),
-                React.createElement("span", { className: "ccw-ws-name", title: w.path }, w.name || w.path),
               ),
+              currentWs === w.path ? React.createElement("span", { className: "ccw-ws-cur", title: "当前工作区" }) : null,
+              React.createElement("span", {
+                className: "ccw-ws-name",
+                style: { cursor: "pointer", minWidth: 0 },
+                title: currentWs === w.path ? "当前工作区：" + w.path : "设为当前工作区：" + w.path,
+                onClick: () => onSelectWs(w),
+              }, w.name || w.path),
               React.createElement("span", { className: "ccw-dim" }, "(" + w.sessions.length + ")"),
               React.createElement("button", { className: "ccw-icbtn", title: "重命名工作区", onClick: () => onRenameWs(w) }, "✎"),
               React.createElement("button", { className: "ccw-icbtn", title: "移除工作区（不删文件）", onClick: () => onDeleteWs(w) }, "🗑"),
@@ -450,6 +458,8 @@ window.__ModuleLoader__.load({
       const [updateInfo, setUpdateInfo] = React.useState(null);
       const [updating, setUpdating] = React.useState(false);
       const [pickingWs, setPickingWs] = React.useState(false);
+      // 当前选中的工作区（新会话/首条消息将创建到这里）；首次快照时用服务器当前值初始化
+      const [selWs, setSelWs] = React.useState("");
       // 面板几何：left/top/width/height（初始居中）
       const [geom, setGeom] = React.useState(() => {
         const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
@@ -527,6 +537,14 @@ window.__ModuleLoader__.load({
         fetch(API + "/models", { cache: "no-store" }).then(r => r.json()).then(d => setModels((d && d.models) || [])).catch(() => {});
       }, [open]);
 
+      // 工作区选中状态：仅首次拿到快照时用服务器的 current 初始化一次，
+      // 之后完全由用户的“点击选中 / 添加 / 删除”动作维护，避免被稍后到达的旧快照覆盖。
+      React.useEffect(() => {
+        if (snap && typeof snap.current === "string" && snap.current) {
+          setSelWs(function (prev) { return prev || snap.current; });
+        }
+      }, [snap]);
+
       // 输入框初始高度
       React.useEffect(() => {
         let saved = null;
@@ -561,7 +579,7 @@ window.__ModuleLoader__.load({
         setDraft("");
         setPop(null);
         stickRef.current = true; // 发送后跟随底部
-        api("send", { text: text, expanded: expanded, model: modelId, permissionMode: "default" });
+        api("send", { text: text, expanded: expanded, model: modelId, permissionMode: "default", cwd: selWs });
       }
 
       function onSwitch(s) {
@@ -570,7 +588,16 @@ window.__ModuleLoader__.load({
         else if (s.id) api("switch", { sessionId: s.id });
       }
 
-      function onNew() { stickRef.current = true; api("new-session", { permissionMode: "default" }); }
+      function onNew() {
+        stickRef.current = true;
+        api("new-session", { permissionMode: "default", cwd: selWs });
+      }
+
+      function onSelectWs(w) {
+        if (!w || !w.path) return;
+        setSelWs(w.path);                       // 立即更新选中态，避免与新会话请求竞态
+        api("set-workspace", { path: w.path });  // 同步服务端“当前工作区”（用于目录/命令等）
+      }
 
       async function onAddWs() {
         if (pickingWs) return;
@@ -578,13 +605,17 @@ window.__ModuleLoader__.load({
         try {
           const res = await api("pick-directory", {});
           if (res && res.ok && res.path) {
-            await api("ws-add", { path: res.path });
+            const added = await api("ws-add", { path: res.path });
+            if (added && added.ok && added.path) setSelWs(added.path);
           } else if (res && res.cancelled) {
             // 用户取消，不做任何事
           } else {
             // 原生选择器不可用/失败：回退到手动输入
             const p = window.prompt("输入工作区目录路径");
-            if (p && p.trim()) await api("ws-add", { path: p.trim() });
+            if (p && p.trim()) {
+              const added = await api("ws-add", { path: p.trim() });
+              if (added && added.ok && added.path) setSelWs(added.path);
+            }
           }
         } finally {
           setPickingWs(false);
@@ -628,7 +659,10 @@ window.__ModuleLoader__.load({
         if (t != null) api("ws-rename", { path: w.path, name: t });
       }
       function onDeleteWs(w) {
-        if (window.confirm("从注册表移除工作区「" + (w.name || w.path) + "」？\n（不删除磁盘文件）")) api("ws-delete", { path: w.path });
+        if (!window.confirm("从注册表移除工作区「" + (w.name || w.path) + "」？\n（不删除磁盘文件）")) return;
+        api("ws-delete", { path: w.path }).then(function (res) {
+          if (res && res.ok && res.current) setSelWs(res.current);
+        });
       }
 
       function onInputChange(e) {
@@ -792,6 +826,7 @@ window.__ModuleLoader__.load({
             onRenameSession: onRenameSession, onDeleteSession: onDeleteSession,
             onRenameWs: onRenameWs, onDeleteWs: onDeleteWs,
             width: sidebarW, pickingWs: pickingWs,
+            currentWs: selWs, onSelectWs: onSelectWs,
           }),
           React.createElement("div", { className: "ccw-split", title: "拖拽调整工作区宽度", onPointerDown: beginSidebarResize }),
           React.createElement("div", { className: "ccw-main" },
