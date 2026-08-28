@@ -5,6 +5,7 @@
   "type": "module",
   "main": "lib/index.js",
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.241",
     "ws": "^8.21.0"
   },
   "exports": {
@@ -17,6 +18,9 @@
     "./package.json": "./package.json"
   },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "inject": [
         "@deepseek-ai/dsh-client-runtime"
@@ -28,6 +32,7 @@
     "lib/index.js",
     "lib/client.js",
     "server.cjs",
+    "cordis.patch.yml",
     "DEPLOY.md"
   ],
   "license": "MIT"

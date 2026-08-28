@@ -52,7 +52,7 @@
 - `/claude` HTTP 前缀路由
 - `/claude/api/stream` WebSocket 路由
 
-插件加载时初始化服务，卸载时释放 HTTP、WebSocket 以及服务端资源。fileciteturn6file0
+插件加载时初始化服务，卸载时释放 HTTP、WebSocket 以及服务端资源。
 
 ### 客户端
 
@@ -76,7 +76,7 @@
 - Claude Code CLI
 - 可用的 Anthropic 凭据
 
-插件通过 DSH profile 的 `node_modules` 符号链接和 `cordis.patch.yml` 的 `insert` 配置加载。详细步骤请参考 [INSTALL.md](./INSTALL.md)。fileciteturn7file0
+插件通过 DSH 官方 profile bundle 机制加载：`dsh plugin --profile web add ...` 安装到 profile 的 `node_modules`，并自动登记进 `package.json` 的 `dependencies` / `dsh.profile.bundles`（插件自带的 `dsh.bundle.patch` → `cordis.patch.yml` 完成注册）；同时保留离线自包含包方式。详细步骤请参考 [INSTALL.md](./INSTALL.md)。
 
 ## 配置
 
@@ -97,6 +97,7 @@ dsh-claude-code-web/
 ├── INSTALL.md
 ├── DEPLOY.md
 ├── package.json
+├── cordis.patch.yml
 ├── server.cjs
 └── lib/
     ├── index.js

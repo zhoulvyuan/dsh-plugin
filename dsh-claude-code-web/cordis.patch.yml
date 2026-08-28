@@ -1,0 +1,6 @@
+# dsh-claude-code-web bundle patch: insert this plugin's row over the
+# composed profile tree. Applied as its own bundle layer via dsh.profile.bundles.
+
+- insert:
+    - id: claude-code-web
+      name: dsh-claude-code-web
