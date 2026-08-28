@@ -13,6 +13,8 @@
 | Plugin | Description |
 | --- | --- |
 | [dsh-claude-code-web](./dsh-claude-code-web) | 将 Claude Code Web 工作台集成到 DSH |
+| [dsh-md-workspace](./dsh-md-workspace) | 本地目录浏览 + Markdown 打开/编辑/实时预览 |
+| [dsh-updchk](./dsh-updchk) | DSH 检查更新面板（版本检测 / 兼容性风险 / 更新与回滚） |
 
 ## 仓库结构
 
@@ -25,6 +27,20 @@ dsh-plugin/
 │   ├── INSTALL.md
 │   ├── DEPLOY.md
 │   └── ...
+│
+├── dsh-md-workspace/
+│   ├── README.md
+│   ├── INSTALL.md
+│   ├── package.json
+│   ├── cordis.patch.yml
+│   └── lib/
+│
+├── dsh-updchk/
+│   ├── README.md
+│   ├── INSTALL.md
+│   ├── package.json
+│   ├── cordis.patch.yml
+│   └── lib/
 │
 └── ...
 ```
