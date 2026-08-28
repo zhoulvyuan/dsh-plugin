@@ -1,0 +1,6 @@
+# dsh-md-workspace bundle patch: insert this plugin's row over the composed
+# profile tree. Applied as its own bundle layer via dsh.profile.bundles.
+
+- insert:
+    - id: md-workspace
+      name: dsh-md-workspace
