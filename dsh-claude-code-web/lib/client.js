@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
 .ccw-srow:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
 .ccw-srow.active { background:rgba(79,140,255,.14); }
 .ccw-stitle { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ccw-sdim { flex:none; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; padding-left:6px; }
 .ccw-sdot { width:8px; height:8px; border-radius:50%; flex:none; }
 .ccw-msg { max-width:86%; padding:8px 12px; border-radius:10px; line-height:1.55; overflow-wrap:anywhere; }
 .ccw-msg.user { align-self:flex-end; background:#2563eb; color:#fff; white-space:pre-wrap; }
@@ -99,35 +100,52 @@ window.__ModuleLoader__.load({
 .ccw-md .ccw-a:hover { text-decoration:underline; }
 .ccw-md strong { font-weight:600; }
 .ccw-md em { font-style:italic; }
-.ccw-ctl { align-self:stretch; border:1px solid #f59e0b; background:var(--dsw-alias-bg-layer-1,#f3f4f6); border-radius:10px; padding:10px 12px; }
-.ccw-ctl-head { font-weight:600; color:var(--dsw-alias-label-primary,#1f2937); margin-bottom:4px; }
-.ccw-ctl-input { font-family:ui-monospace,monospace; font-size:11px; background:rgba(127,127,127,.14); padding:6px 8px; border-radius:6px; white-space:pre-wrap; max-height:140px; overflow-y:auto; margin-bottom:8px; }
-.ccw-ctl-actions { display:flex; gap:8px; flex-wrap:wrap; }
-.ccw-dot { display:inline-block; width:8px; height:8px; border-radius:50%; }
-.ccw-pop-list { background:var(--dsw-alias-bg-base,#fff); border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:8px; max-height:220px; overflow-y:auto; box-shadow:0 4px 16px rgba(0,0,0,.12); margin-bottom:4px; }
-.ccw-pop-item { padding:7px 10px; cursor:pointer; }
-.ccw-pop-item:hover, .ccw-pop-item.sel { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-pop-kind { display:inline-block; font-size:10px; line-height:1; padding:2px 5px; border-radius:4px; margin-right:6px; vertical-align:1px; background:rgba(37,99,235,.12); color:#2563eb; }
-.ccw-pop-kind.skill { background:rgba(217,119,87,.16); color:#b45309; }
-.ccw-resize { height:6px; cursor:ns-resize; margin:-4px 0 4px; border-radius:3px; flex:none; }
-.ccw-resize:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-empty { color:var(--dsw-alias-label-secondary,#9ca3af); padding:20px; text-align:center; }
-.ccw-dim { color:var(--dsw-alias-label-secondary,#9ca3af); font-size:11px; }
-.ccw-status { display:inline-flex; align-items:center; gap:4px; font-size:11px; line-height:1; padding:3px 8px; border-radius:10px; white-space:nowrap; font-weight:500; }
-.ccw-status.running, .ccw-status.starting { background:rgba(37,99,235,.14); color:#3b82f6; }
-.ccw-status.done { background:rgba(34,197,94,.16); color:#22c55e; }
-.ccw-status.error { background:rgba(239,68,68,.16); color:#ef4444; }
-.ccw-status.stopped { background:rgba(107,114,128,.16); color:#6b7280; }
-.ccw-status.idle { background:rgba(107,114,128,.12); color:#6b7280; }
-.ccw-icbtn { border:none; background:transparent; cursor:pointer; padding:0 2px; font-size:12px; opacity:.55; line-height:1; }
-.ccw-icbtn:hover { opacity:1; }
-.ccw-srow-actions { display:none; flex:none; gap:2px; }
-.ccw-srow:hover .ccw-srow-actions { display:inline-flex; }
-.ccw-modal { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:1000; }
-.ccw-modal-box { width:min(480px,90vw); max-height:80vh; overflow-y:auto; background:var(--dsw-alias-bg-layer-1,#fff); border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.25); }
-.ccw-modal-head { font-weight:600; margin-bottom:12px; }
-.ccw-modal-log { font-family:ui-monospace,monospace; font-size:11px; background:rgba(0,0,0,.04); padding:8px; border-radius:6px; white-space:pre-wrap; max-height:200px; overflow-y:auto; margin-top:8px; }
-.ccw-modal-actions { margin-top:16px; display:flex; justify-content:flex-end; gap:8px; }
+.ccw-pre-wrap { position:relative; }
+.ccw-code-copy { position:absolute; top:6px; right:6px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border-radius:4px; font-size:10px; padding:2px 6px; cursor:pointer; opacity:.55; }
+.ccw-code-copy:hover { opacity:1; }
+.ccw-msgtime-in { font-size:10px; opacity:.55; margin-top:3px; text-align:right; }
+.ccw-tool-out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:220px; overflow-y:auto; margin-top:4px; }
+.ccw-toasts { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:1200; pointer-events:none; }
+.ccw-toast { background:rgba(20,20,24,.92); color:#fff; font-size:12px; padding:7px 14px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:76%; }
+.ccw-toast.err { background:rgba(220,38,38,.95); }
+.ccw-toast.ok { background:rgba(22,163,74,.95); }
+.ccw-mini-pill { position:absolute; right:20px; bottom:20px; display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px; background:var(--dsw-alias-bg-base,#151517); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); box-shadow:0 8px 24px rgba(0,0,0,.25); cursor:pointer; font-size:12px; font-weight:600; color:var(--dsw-alias-label-primary,#1f2937); z-index:40; }
+.ccw-wsfilter { width:100%; margin-bottom:8px; padding:5px 8px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; font-size:12px; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
+.ccw-loadmore { align-self:center; margin-bottom:4px; }
+.ccw-batchbar { align-self:stretch; display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid #f59e0b; background:rgba(245,158,11,.08); border-radius:8px; font-size:12px; margin-bottom:2px; }
+.ccw-queued { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); padding:0 2px 4px; }
+.ccw-img-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; padding:0 2px; }
+.ccw-img-chip { display:inline-flex; align-items:center; gap:4px; font-size:11px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; padding:2px 6px; background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
+.ccw-pop-hint { color:var(--dsw-alias-label-secondary,#9ca3af); font-size:10px; margin-left:4px; }
+.ccw-umsg-edit { float:right; border:none; background:rgba(255,255,255,.25); color:#fff; cursor:pointer; font-size:10px; border-radius:4px; padding:1px 5px; margin-left:8px; opacity:.75; }
+.ccw-umsg-edit:hover { opacity:1; }
+.ccw-dialog-input { width:100%; padding:7px 9px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
+.ccw-dim { color:var(--dsw-alias-label-secondary,#9ca3af); font-size:12px; }
+.ccw-icbtn { flex:none; border:none; background:transparent; color:var(--dsw-alias-label-secondary,#9ca3af); cursor:pointer; font-size:11px; line-height:1; padding:3px 4px; border-radius:4px; opacity:.65; }
+.ccw-icbtn:hover { background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.18)); color:var(--dsw-alias-label-primary,#1f2937); opacity:1; }
+.ccw-srow-actions { display:inline-flex; gap:2px; flex:none; margin-left:4px; opacity:.35; transition:opacity .12s; }
+.ccw-srow:hover .ccw-srow-actions { opacity:1; }
+.ccw-ctl { align-self:stretch; max-width:100%; border:1px solid #f59e0b; background:rgba(245,158,11,.06); }
+.ccw-ctl-head { font-weight:600; margin-bottom:6px; }
+.ccw-ctl-input { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:180px; overflow-y:auto; margin-bottom:8px; }
+.ccw-ctl-actions { display:flex; gap:8px; }
+.ccw-pop-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; margin-bottom:6px; border:1px solid var(--dsw-alias-border-l1,#e5e7eb); border-radius:8px; padding:4px; background:var(--dsw-alias-bg-layer-1,#f9fafb); }
+.ccw-pop-item { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:12px; white-space:nowrap; overflow:hidden; }
+.ccw-pop-item:hover, .ccw-pop-item.sel { background:rgba(79,140,255,.14); }
+.ccw-pop-kind { flex:none; font-size:10px; color:var(--dsw-alias-label-secondary,#9ca3af); border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:4px; padding:0 4px; }
+.ccw-pop-kind.skill { color:#7c3aed; border-color:#7c3aed; }
+.ccw-resize { height:6px; cursor:row-resize; margin:0 2px 6px; border-radius:3px; background:var(--dsw-alias-border-l2,#d1d5db); opacity:.5; }
+.ccw-resize:hover { opacity:1; background:#4f8cff; }
+.ccw-empty { align-self:center; margin:auto; color:var(--dsw-alias-label-secondary,#9ca3af); font-size:13px; text-align:center; }
+.ccw-status { font-size:12px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; }
+.ccw-status.running, .ccw-status.starting { color:#f59e0b; }
+.ccw-status.error { color:var(--dsw-alias-state-error-primary,#dc2626); }
+.ccw-status.done, .ccw-status.stopped { color:#16a34a; }
+.ccw-modal { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:1100; }
+.ccw-modal-box { background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); border-radius:12px; box-shadow:0 16px 48px rgba(0,0,0,.2); padding:16px; min-width:320px; max-width:480px; max-height:80%; overflow-y:auto; }
+.ccw-modal-head { font-weight:600; font-size:14px; margin-bottom:10px; white-space:pre-wrap; }
+.ccw-modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
+.ccw-modal-log { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(0,0,0,.05); border-radius:6px; padding:8px; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin-top:8px; }
 `;
 
     let cssInjected = false;
@@ -151,6 +169,77 @@ window.__ModuleLoader__.load({
       }).then(function (r) { return r.json(); }).catch(function (e) {
         return { ok: false, error: String(e && e.message || e) };
       });
+    }
+
+    // ------------------------------------------------------------------
+    // 本地存储小工具（localStorage 只存界面偏好，不产生任何网络请求）
+    // ------------------------------------------------------------------
+    function loadNum(key, dft) {
+      try { const v = parseInt(localStorage.getItem(key), 10); if (isFinite(v) && v > 0) return v; } catch (e) {}
+      return dft;
+    }
+    function saveNum(key, v) {
+      try { localStorage.setItem(key, String(v)); } catch (e) {}
+    }
+    function loadGeom() {
+      const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const vh = typeof window !== "undefined" ? window.innerHeight : 900;
+      const w = Math.max(480, Math.min(1100, vw - 24));
+      const h = Math.max(360, Math.min(720, vh - 24));
+      const base = { left: Math.max(0, (vw - w) / 2), top: Math.max(0, (vh - h) / 2), width: w, height: h };
+      try {
+        const s = localStorage.getItem("ccwGeom");
+        if (s) {
+          const g = JSON.parse(s);
+          if (g && typeof g.left === "number" && typeof g.top === "number" && typeof g.width === "number" && typeof g.height === "number") {
+            // 防止窗口变小后面板完全出界
+            return {
+              left: Math.min(Math.max(0, g.left), Math.max(0, vw - 80)),
+              top: Math.min(Math.max(0, g.top), Math.max(0, vh - 60)),
+              width: Math.max(480, Math.min(g.width, vw - 8)),
+              height: Math.max(360, Math.min(g.height, vh - 8)),
+            };
+          }
+        }
+      } catch (e) {}
+      return base;
+    }
+    function getRecentCmds() {
+      try { const l = JSON.parse(localStorage.getItem("ccwRecentCmds") || "[]"); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+    }
+    function recordRecent(name) {
+      try {
+        let list = getRecentCmds();
+        list = list.filter(function (n) { return n !== name; });
+        list.unshift(name);
+        localStorage.setItem("ccwRecentCmds", JSON.stringify(list.slice(0, 10)));
+      } catch (e) {}
+    }
+
+    // 剪贴板复制（clipboard API 优先，execCommand 兜底）
+    function copyText(text) {
+      return new Promise(function (resolve) {
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () { resolve(true); }, function () { resolve(fallbackCopy(text)); });
+            return;
+          }
+        } catch (e) {}
+        resolve(fallbackCopy(text));
+      });
+    }
+    function fallbackCopy(text) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        return ok;
+      } catch (e) { return false; }
     }
 
     function expandCommand(text, catalog) {
@@ -247,7 +336,7 @@ window.__ModuleLoader__.load({
         const fence = /^```([A-Za-z0-9_+-]*)\s*$/.exec(line);
         if (fence) {
           if (codeBuf !== null) {
-            out.push('<pre class="ccw-pre"' + (codeLang ? ' data-lang="' + escapeHtml(codeLang) + '"' : "") + '><code>' + codeBuf.join("\n") + "</code></pre>");
+            out.push('<div class="ccw-pre-wrap"><button type="button" class="ccw-code-copy" data-ccw-copy>复制</button><pre class="ccw-pre"' + (codeLang ? ' data-lang="' + escapeHtml(codeLang) + '"' : "") + '><code>' + codeBuf.join("\n") + "</code></pre></div>");
             codeBuf = null; codeLang = "";
           } else { codeBuf = []; codeLang = fence[1] || ""; closeList(); }
           continue;
@@ -286,7 +375,7 @@ window.__ModuleLoader__.load({
         closeList();
         out.push('<div class="ccw-p">' + inlineMd(esc) + "</div>");
       }
-      if (codeBuf !== null) out.push('<pre class="ccw-pre"><code>' + codeBuf.join("\n") + "</code></pre>");
+      if (codeBuf !== null) out.push('<div class="ccw-pre-wrap"><button type="button" class="ccw-code-copy" data-ccw-copy>复制</button><pre class="ccw-pre"><code>' + codeBuf.join("\n") + "</code></pre></div>");
       closeList();
       return out.join("\n");
     }
@@ -311,29 +400,64 @@ window.__ModuleLoader__.load({
     // 消息渲染
     // ------------------------------------------------------------------
     function ControlCard({ msg }) {
+      const [expanded, setExpanded] = React.useState(false);
       const answered = msg.decision != null;
       const label = answered
         ? (msg.decision === "allow" ? "已允许" : msg.decision === "always" ? "已始终允许" : "已拒绝")
         : null;
       const inputText = typeof msg.input === "string" ? msg.input : JSON.stringify(msg.input || {});
+      const tooLong = String(inputText).length > 2000;
       return React.createElement("div", { className: "ccw-msg ccw-ctl" },
         React.createElement("div", { className: "ccw-ctl-head" },
           "🔐 " + (msg.displayName || msg.toolName || "工具") + " 请求授权"),
-        inputText ? React.createElement("div", { className: "ccw-ctl-input" }, String(inputText).slice(0, 2000)) : null,
+        inputText ? React.createElement("div", { className: "ccw-ctl-input" },
+          expanded ? String(inputText) : String(inputText).slice(0, 2000),
+          tooLong ? React.createElement("button", {
+            type: "button", className: "ccw-think-toggle", style: { marginTop: 4, marginBottom: 0 },
+            onClick: function () { setExpanded(function (v) { return !v; }); },
+          }, expanded ? "收起" : "展开全部（共 " + String(inputText).length + " 字符）") : null,
+        ) : null,
         answered
           ? React.createElement("div", { className: "ccw-dim" }, "状态：" + label)
-          : React.createElement("div", { className: "ccw-ctl-actions" },
-              React.createElement("button", { className: "ccw-btn small primary", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "allow" }) }, "允许"),
-              React.createElement("button", { className: "ccw-btn small", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "always" }) }, "始终允许"),
-              React.createElement("button", { className: "ccw-btn small danger", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "deny" }) }, "拒绝"),
+          : React.createElement("div", null,
+              React.createElement("div", { className: "ccw-ctl-actions" },
+                React.createElement("button", { className: "ccw-btn small primary", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "allow" }) }, "允许"),
+                React.createElement("button", { className: "ccw-btn small", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "always" }) }, "始终允许"),
+                React.createElement("button", { className: "ccw-btn small danger", onClick: () => api("answer-control", { requestId: msg.requestId, behavior: "deny" }) }, "拒绝"),
+              ),
+              React.createElement("div", { className: "ccw-dim", style: { marginTop: 6 } }, "「始终允许」仅在本会话内对相同命令 / 文件路径生效"),
             ),
       );
     }
 
-    function MessageView({ msg, live }) {
+    // memo 比较器：服务端会原位更新消息对象（引用不变），必须逐字段比较才有意义
+    function messagePropsEqual(a, b) {
+      return a.msg === b.msg
+        && a.msg.text === b.msg.text
+        && a.msg.thinking === b.msg.thinking
+        && a.msg.status === b.msg.status
+        && a.msg.decision === b.msg.decision
+        && a.msg.result === b.msg.result
+        && a.msg.isError === b.msg.isError
+        && a.live === b.live
+        && a.onFill === b.onFill;
+    }
+    const MessageView = React.memo(function MessageView({ msg, live, onFill }) {
       const [thinkingOpen, setThinkingOpen] = React.useState(false);
+      const [toolOpen, setToolOpen] = React.useState(false);
+      // Markdown 解析按内容缓存：整树重渲染时不再对每条消息重跑正则
+      const mdHtml = React.useMemo(function () { return renderMarkdown(msg.text); }, [msg.text]);
+      const ts = msg.ts ? formatClock(msg.ts) : "";
       if (msg.role === "user") {
-        return React.createElement("div", { className: "ccw-msg user" }, msg.text || "");
+        return React.createElement("div", { className: "ccw-msg user" },
+          msg.text || "",
+          msg.images && msg.images.length ? React.createElement("div", { style: { opacity: .8, marginTop: 2 } }, "🖼 图片 ×" + msg.images.length) : null,
+          onFill ? React.createElement("button", {
+            type: "button", className: "ccw-umsg-edit", title: "填入输入框重新编辑",
+            onClick: function (e) { e.stopPropagation(); onFill(msg.text || ""); },
+          }, "✎") : null,
+          ts ? React.createElement("div", { className: "ccw-msgtime-in" }, ts) : null,
+        );
       }
       if (msg.role === "assistant") {
         const hasThinking = !!msg.thinking;
@@ -350,12 +474,39 @@ window.__ModuleLoader__.load({
             thinkingActive ? React.createElement("span", { className: "ccw-think-pulse" }) : null,
           ) : null,
           hasThinking && thinkingOpen ? React.createElement("div", { className: "ccw-thinking" }, msg.thinking) : null,
-          React.createElement("div", { className: "ccw-md", dangerouslySetInnerHTML: { __html: renderMarkdown(msg.text) } }),
+          React.createElement("div", {
+            className: "ccw-md",
+            dangerouslySetInnerHTML: { __html: mdHtml },
+            onClick: function (e) {
+              // 代码块复制按钮（dangerouslySetInnerHTML 内的元素无法绑 React 事件，用事件委托）
+              const t = e.target;
+              if (t && t.classList && t.classList.contains("ccw-code-copy")) {
+                const wrap = t.parentElement;
+                const code = wrap ? wrap.querySelector("pre code") : null;
+                if (code) {
+                  copyText(code.textContent || "").then(function (ok) {
+                    t.textContent = ok ? "已复制 ✓" : "复制失败";
+                    setTimeout(function () { t.textContent = "复制"; }, 1500);
+                  });
+                }
+              }
+            },
+          }),
+          ts ? React.createElement("div", { className: "ccw-msgtime-in" }, ts) : null,
         );
       }
       if (msg.role === "tool") {
+        const hasResult = msg.result != null && String(msg.result).length > 0;
         return React.createElement("div", { className: "ccw-msg tool" },
-          "🛠 " + (msg.name || "工具") + (msg.status === "running" ? "（运行中…）" : ""));
+          "🛠 " + (msg.name || "工具") + (msg.status === "running" ? "（运行中…）" : " ✓"),
+          hasResult ? React.createElement("button", {
+            type: "button", className: "ccw-think-toggle", style: { marginLeft: 6, marginBottom: 0 },
+            onClick: function () { setToolOpen(function (v) { return !v; }); },
+          }, toolOpen ? "▾ 收起输出" : "▸ 查看输出") : null,
+          hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-out" },
+            String(msg.result).length > 20000 ? String(msg.result).slice(0, 20000) + "\n…（过长已截断）" : String(msg.result),
+          ) : null,
+        );
       }
       if (msg.role === "result") {
         return React.createElement("div", { className: "ccw-msg result" + (msg.isError ? " err" : "") },
@@ -365,16 +516,40 @@ window.__ModuleLoader__.load({
         return React.createElement(ControlCard, { msg: msg });
       }
       return null;
-    }
+    }, messagePropsEqual);
 
     // ------------------------------------------------------------------
     // 侧边栏
     // ------------------------------------------------------------------
     function Sidebar({ snap, collapsed, toggleWs, onNew, onSwitch, onAddWs, onRenameSession, onDeleteSession, onRenameWs, onDeleteWs, width, pickingWs, currentWs, onSelectWs }) {
-      const ws = (snap && snap.workspaces) || [];
+      // 相对时间显示所需的本地计时（30s 一跳，纯本地渲染，不产生网络请求）
+      const [now, setNow] = React.useState(function () { return Date.now(); });
+      const [kw, setKw] = React.useState("");
+      React.useEffect(function () {
+        const t = setInterval(function () { setNow(Date.now()); }, 30000);
+        return function () { clearInterval(t); };
+      }, []);
+      const all = (snap && snap.workspaces) || [];
+      const q = kw.trim().toLowerCase();
+      let ws = all;
+      if (q) {
+        ws = [];
+        for (const w of all) {
+          const wName = ((w.name || "") + " " + (w.path || "")).toLowerCase();
+          const sessions = (w.sessions || []).filter(function (s) {
+            return wName.indexOf(q) !== -1 || (s.title || "").toLowerCase().indexOf(q) !== -1;
+          });
+          if (sessions.length > 0) ws.push(Object.assign({}, w, { sessions: sessions }));
+        }
+      }
       return React.createElement("div", { className: "ccw-sidebar", style: { width: width } },
         React.createElement("button", { className: "ccw-btn primary", style: { width: "100%", marginBottom: 8 }, onClick: onNew }, "＋ 新会话"),
         React.createElement("button", { className: "ccw-btn small", style: { width: "100%", marginBottom: 8 }, onClick: onAddWs, disabled: pickingWs }, pickingWs ? "正在打开目录选择…" : "＋ 添加工作区"),
+        React.createElement("input", {
+          className: "ccw-wsfilter", placeholder: "搜索会话 / 工作区…", value: kw,
+          onChange: function (e) { setKw(e.target.value); },
+        }),
+        ws.length === 0 ? React.createElement("div", { className: "ccw-dim", style: { padding: "8px 6px" } }, q ? "无匹配的会话或工作区" : "暂无工作区") : null,
         ws.map(function (w) {
           const open = !collapsed.has(w.path);
           return React.createElement("div", { className: "ccw-ws", key: w.path },
@@ -401,6 +576,7 @@ window.__ModuleLoader__.load({
               },
                 React.createElement("span", { className: "ccw-sdot", style: { background: s.status === "running" || s.status === "starting" ? "#f59e0b" : s.active ? "#2563eb" : "#d1d5db" } }),
                 React.createElement("span", { className: "ccw-stitle", title: s.title }, s.title || s.id || "（会话）"),
+                s.mtimeMs ? React.createElement("span", { className: "ccw-sdim", title: "最后变更：" + formatFullTime(s.mtimeMs) }, formatRelativeTime(s.mtimeMs, now)) : null,
                 s.id ? React.createElement("span", { className: "ccw-srow-actions" },
                   React.createElement("button", { className: "ccw-icbtn", title: "重命名会话", onClick: (e) => { e.stopPropagation(); onRenameSession(s); } }, "✎"),
                   React.createElement("button", { className: "ccw-icbtn", title: "删除会话", onClick: (e) => { e.stopPropagation(); onDeleteSession(s); } }, "🗑"),
@@ -432,11 +608,46 @@ window.__ModuleLoader__.load({
       const h = Math.floor(m / 60);
       return h + "h " + (m % 60) + "m";
     }
-    function StatusBadge({ status, startedAt, durationMs, now }) {
+    function formatClock(ms) {
+      const dt = new Date(ms);
+      const pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      return pad(dt.getHours()) + ":" + pad(dt.getMinutes());
+    }
+    // 相对时间：会话最后变更距现在的间隔（中文友好格式）
+    function formatRelativeTime(ms, now) {
+      if (ms == null || !isFinite(ms) || ms <= 0) return "";
+      const diff = Math.max(0, (now || Date.now()) - ms);
+      const s = Math.floor(diff / 1000);
+      if (s < 60) return "刚刚";
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + "分钟前";
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + "小时前";
+      const d = Math.floor(h / 24);
+      if (d < 30) return d + "天前";
+      const dt = new Date(ms);
+      return (dt.getMonth() + 1) + "月" + dt.getDate() + "日";
+    }
+    // 完整时间：悬浮提示用
+    function formatFullTime(ms) {
+      if (ms == null || !isFinite(ms) || ms <= 0) return "";
+      const dt = new Date(ms);
+      const pad = function (n) { return (n < 10 ? "0" : "") + n; };
+      return dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate()) + " " + pad(dt.getHours()) + ":" + pad(dt.getMinutes());
+    }
+    // 状态徽章：运行中时自己每秒刷新（局部重渲染，不拖动整棵树）
+    function StatusBadge({ status, startedAt, durationMs }) {
+      const [now, setNow] = React.useState(function () { return Date.now(); });
+      const running = status === "running" || status === "starting";
+      React.useEffect(function () {
+        if (!running) return;
+        const t = setInterval(function () { setNow(Date.now()); }, 1000);
+        return function () { clearInterval(t); };
+      }, [running]);
       const label = STATUS_LABEL[status] || String(status || "");
       let time = "";
       if (durationMs != null) time = formatDuration(durationMs);
-      else if (startedAt != null && (status === "running" || status === "starting")) time = formatDuration(now - startedAt);
+      else if (startedAt != null && running) time = formatDuration(now - startedAt);
       return React.createElement("span", { className: "ccw-status " + (status || "idle") },
         label + (time ? " · " + time : ""));
     }
@@ -449,6 +660,7 @@ window.__ModuleLoader__.load({
       const [modelId, setModelId] = React.useState("");
       const [collapsed, setCollapsed] = React.useState(() => new Set());
       const [conn, setConn] = React.useState(false);
+      const [reconn, setReconn] = React.useState(0);
       const [pop, setPop] = React.useState(null);
       const [inputH, setInputH] = React.useState(null);
       const inputHRef = React.useRef(40);
@@ -460,22 +672,65 @@ window.__ModuleLoader__.load({
       const [pickingWs, setPickingWs] = React.useState(false);
       // 当前选中的工作区（新会话/首条消息将创建到这里）；首次快照时用服务器当前值初始化
       const [selWs, setSelWs] = React.useState("");
-      // 面板几何：left/top/width/height（初始居中）
-      const [geom, setGeom] = React.useState(() => {
-        const vw = typeof window !== "undefined" ? window.innerWidth : 1200;
-        const vh = typeof window !== "undefined" ? window.innerHeight : 900;
-        const w = Math.max(480, Math.min(1100, vw - 24));
-        const h = Math.max(360, Math.min(720, vh - 24));
-        return { left: Math.max(0, (vw - w) / 2), top: Math.max(0, (vh - h) / 2), width: w, height: h };
-      });
+      // 面板几何：left/top/width/height（localStorage 持久化，刷新页面不丢）
+      const [geom, setGeom] = React.useState(loadGeom);
+      const geomRef = React.useRef(geom);
+      geomRef.current = geom;
       const [maximized, setMaximized] = React.useState(false);
       const toggleMaximize = () => setMaximized((v) => !v);
-      const [sidebarW, setSidebarW] = React.useState(240);
+      const [sidebarW, setSidebarW] = React.useState(() => loadNum("ccwSidebarW", 240));
+      const sidebarWRef = React.useRef(sidebarW);
+      sidebarWRef.current = sidebarW;
+      const [minimized, setMinimized] = React.useState(false);
+      const [toasts, setToasts] = React.useState([]);
+      const [dialog, setDialog] = React.useState(null);
+      const dialogInputRef = React.useRef(null);
+      const [queued, setQueued] = React.useState(null);
+      const [pendingImages, setPendingImages] = React.useState([]);
+      const [msgLimit, setMsgLimit] = React.useState(120);
+      const inputRef = React.useRef(null);
+      const draftRef = React.useRef("");
+      draftRef.current = draft;
+      const histRef = React.useRef({ list: [], idx: -1 });
+      const draftStoreRef = React.useRef({}); // 会话 key -> 草稿
+      const pagRef = React.useRef(null);      // “加载更早”前记录滚动位置，避免跳动
 
-      // 活跃会话与运行状态（提前推导，供计时 effect 与渲染共用）
+      // 活跃会话与运行状态
       const active = snap && snap.active;
+      const activeKey = active ? active.key : "";
       const running = !!(active && (active.status === "running" || active.status === "starting"));
-      const [now, setNow] = React.useState(function () { return Date.now(); });
+
+      // ── toast：所有失败必须可见 ──
+      const toastSeq = React.useRef(0);
+      const toast = React.useCallback(function (text, kind) {
+        const id = ++toastSeq.current;
+        setToasts(function (list) { return list.concat([{ id: id, text: String(text || ""), kind: kind || "" }]); });
+        setTimeout(function () {
+          setToasts(function (list) { return list.filter(function (t) { return t.id !== id; }); });
+        }, 4000);
+      }, []);
+      // 统一的带检查 api 调用：失败弹 toast，成功可选提示；返回 null 表示失败
+      const apiChecked = React.useCallback(function (method, body, okMsg) {
+        return api(method, body).then(function (res) {
+          if (!res || res.ok === false) { toast((res && res.error) || "操作失败", "err"); return null; }
+          if (okMsg) toast(okMsg, "ok");
+          return res;
+        });
+      }, [toast]);
+
+      // ── 自定义弹层（替代原生 prompt/confirm）──
+      const uiPrompt = React.useCallback(function (title, value) {
+        return new Promise(function (resolve) { setDialog({ kind: "prompt", title: title, value: value || "", resolve: resolve }); });
+      }, []);
+      const uiConfirm = React.useCallback(function (title) {
+        return new Promise(function (resolve) { setDialog({ kind: "confirm", title: title, resolve: resolve }); });
+      }, []);
+
+      // ── 目录/模型拉取：面板打开、WS 重连成功、手动刷新按钮（事件驱动，绝不定时轮询）──
+      const refetchCatalog = React.useCallback(function () {
+        fetch(API + "/catalog", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) { setCatalog(d); }).catch(function () {});
+        fetch(API + "/models", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) { setModels((d && d.models) || []); }).catch(function () {});
+      }, []);
 
       // WebSocket 下行 + 指数退避重连（面板关闭时不连）
       React.useEffect(() => {
@@ -492,7 +747,29 @@ window.__ModuleLoader__.load({
           const base = Math.min(10000, 500 * Math.pow(2, attempt));
           const delay = base + Math.floor(Math.random() * 250);
           attempt += 1;
+          setReconn(attempt);
           reconnectTimer = setTimeout(function () { reconnectTimer = null; connect(); }, delay);
+        }
+
+        // 增量流式帧：只更新正在输出的那条消息，避免整包快照引发的整树重渲染
+        function applyFrame(d) {
+          if (d && d.type === "stream-delta" && d.delta) {
+            setSnap(function (prev) {
+              if (!prev || !prev.active || prev.active.key !== d.delta.key) return prev;
+              const msgs = prev.active.messages || [];
+              let idx = -1;
+              for (let i = msgs.length - 1; i >= 0; i--) {
+                if (msgs[i].messageKey === d.delta.messageKey) { idx = i; break; }
+              }
+              if (idx === -1) return prev; // 尚未收到含该消息的快照，等下一帧全量兜底
+              const nm = Object.assign({}, msgs[idx], { text: d.delta.text, thinking: d.delta.thinking });
+              const nmsgs = msgs.slice();
+              nmsgs[idx] = nm;
+              return Object.assign({}, prev, { active: Object.assign({}, prev.active, { messages: nmsgs }) });
+            });
+            return;
+          }
+          setSnap(d);
         }
 
         function connect() {
@@ -506,10 +783,12 @@ window.__ModuleLoader__.load({
             return;
           }
           ws = sock;
-          sock.onopen = function () { if (alive) { setConn(true); attempt = 0; } };
+          sock.onopen = function () {
+            if (alive) { setConn(true); setReconn(0); attempt = 0; refetchCatalog(); }
+          };
           sock.onmessage = function (ev) {
             if (!alive) return;
-            try { setSnap(JSON.parse(ev.data)); } catch (e) {}
+            try { applyFrame(JSON.parse(ev.data)); } catch (e) {}
           };
           sock.onerror = function () { if (alive) setConn(false); };
           sock.onclose = function () {
@@ -528,14 +807,19 @@ window.__ModuleLoader__.load({
             ws = null;
           }
         };
-      }, [open]);
+      }, [open, refetchCatalog]);
 
-      // 目录 + 模型
+      // 目录 + 模型（打开面板时拉一次；其余靠 WS 重连 / 手动刷新，事件驱动）
       React.useEffect(() => {
         if (!open) return;
-        fetch(API + "/catalog", { cache: "no-store" }).then(r => r.json()).then(d => setCatalog(d)).catch(() => {});
-        fetch(API + "/models", { cache: "no-store" }).then(r => r.json()).then(d => setModels((d && d.models) || [])).catch(() => {});
-      }, [open]);
+        refetchCatalog();
+      }, [open, refetchCatalog]);
+
+      // 挂载时载入本地偏好：按会话保存的草稿 + 输入历史
+      React.useEffect(function () {
+        try { const s = localStorage.getItem("ccwDrafts"); if (s) { const d = JSON.parse(s); if (d && typeof d === "object") draftStoreRef.current = d; } } catch (e) {}
+        try { const h = localStorage.getItem("ccwHistory"); if (h) { const l = JSON.parse(h); if (Array.isArray(l)) histRef.current.list = l; } } catch (e) {}
+      }, []);
 
       // 工作区选中状态：仅首次拿到快照时用服务器的 current 初始化一次，
       // 之后完全由用户的“点击选中 / 添加 / 删除”动作维护，避免被稍后到达的旧快照覆盖。
@@ -556,47 +840,119 @@ window.__ModuleLoader__.load({
         }
       }, []);
 
-      // 自动滚到底部（仅当用户未上翻时；上翻后不再强制拉回底部）
-      React.useEffect(() => {
-        if (!stickRef.current) return;
-        const el = msgsRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
-      }, [snap]);
+      function persistDrafts() {
+        try { localStorage.setItem("ccwDrafts", JSON.stringify(draftStoreRef.current)); } catch (e) {}
+      }
+      // 切换会话：保存离开会话的草稿，载入目标会话草稿；重置分页窗口与排队消息
+      React.useEffect(function () {
+        setDraft((activeKey && draftStoreRef.current[activeKey]) || "");
+        setPop(null);
+        setMsgLimit(120);
+        setQueued(null);
+        return function () {
+          if (activeKey) { draftStoreRef.current[activeKey] = draftRef.current; persistDrafts(); }
+        };
+      }, [activeKey]);
 
-      // 运行中每秒刷新一次“执行时长”
-      React.useEffect(() => {
-        if (!running) return;
-        const t = setInterval(function () { setNow(Date.now()); }, 1000);
-        return function () { clearInterval(t); };
-      }, [running]);
+      // 自动滚到底部（仅当用户未上翻时；上翻后不再强制拉回底部）
+      // 使用 useLayoutEffect：新消息 DOM 提交后、浏览器绘制前立即滚动，
+      // 避免 useEffect 异步执行前被 scroll 事件把 stickRef 置回 false，导致停在历史位置。
+      React.useLayoutEffect(() => {
+        const el = msgsRef.current;
+        // “加载更早”后保持视口位置（内容在顶部追加）
+        if (pagRef.current && el) {
+          const prev = pagRef.current;
+          pagRef.current = null;
+          el.scrollTop = el.scrollHeight - prev.height + prev.top;
+          return;
+        }
+        if (stickRef.current && el) el.scrollTop = el.scrollHeight;
+      }, [snap, msgLimit]);
+
+      // 回合结束后自动发送排队的消息（本地队列，无网络轮询）
+      React.useEffect(function () {
+        if (!running && queued) {
+          const t = queued;
+          setQueued(null);
+          sendRaw(t, []);
+        }
+      }, [running, queued]);
+
+      // 全局快捷键：Alt+C 开关面板
+      React.useEffect(function () {
+        function onKey(e) {
+          if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === "c" || e.key === "C")) {
+            e.preventDefault();
+            setOpen(!panelOpen);
+          }
+        }
+        window.addEventListener("keydown", onKey);
+        return function () { window.removeEventListener("keydown", onKey); };
+      }, []);
+
+      // ✎ 编辑重发：填入输入框（useCallback 保持稳定引用，供 MessageView memo 比较；
+      //   必须声明在上面的提前 return 之前——早退后不得再调用任何 hook）
+      const fillInput = React.useCallback(function (text) {
+        setDraft(text);
+        setPop(null);
+        if (inputRef.current) { try { inputRef.current.focus(); } catch (e) {} }
+      }, []);
 
       if (!open) return null;
 
+      function sendRaw(text, imgs) {
+        const expanded = expandCommand(text, catalog);
+        const images = imgs || [];
+        stickRef.current = true;
+        apiChecked("send", {
+          text: text, expanded: expanded, model: modelId, permissionMode: "default", cwd: selWs,
+          images: images.length ? images : undefined,
+        }).then(function (res) {
+          if (!res) { setDraft(text); setPendingImages(images); return; } // 失败：还原文稿与图片
+          if (text.charAt(0) === "/") {
+            const m = /^\/([A-Za-z0-9_-]+)/.exec(text);
+            if (m) recordRecent(m[1]);
+          }
+          // 记入输入历史（↑ 键调出）
+          const h = histRef.current;
+          if (h.list[h.list.length - 1] !== text) h.list.push(text);
+          if (h.list.length > 50) h.list = h.list.slice(-50);
+          h.idx = -1;
+          try { localStorage.setItem("ccwHistory", JSON.stringify(h.list)); } catch (e) {}
+          if (activeKey) { delete draftStoreRef.current[activeKey]; persistDrafts(); }
+        });
+      }
+
       function send() {
         const text = (draft || "").trim();
-        if (!text || running) return;
-        const expanded = expandCommand(text, catalog);
-        setDraft("");
-        setPop(null);
-        stickRef.current = true; // 发送后跟随底部
-        api("send", { text: text, expanded: expanded, model: modelId, permissionMode: "default", cwd: selWs });
+        if (!text) return;
+        if (running) { setQueued(text); setDraft(""); setPop(null); return; } // 运行中 → 排队
+        const imgs = pendingImages;
+        setDraft(""); setPop(null); setPendingImages([]);
+        sendRaw(text, imgs);
+      }
+
+      function loadMore() {
+        const el = msgsRef.current;
+        if (el) pagRef.current = { height: el.scrollHeight, top: el.scrollTop };
+        setMsgLimit(function (l) { return l + 200; });
       }
 
       function onSwitch(s) {
         stickRef.current = true; // 切换会话后跟随底部
-        if (s.key) api("switch", { key: s.key });
-        else if (s.id) api("switch", { sessionId: s.id });
+        if (s.key) apiChecked("switch", { key: s.key });
+        else if (s.id) apiChecked("switch", { sessionId: s.id });
       }
 
       function onNew() {
         stickRef.current = true;
-        api("new-session", { permissionMode: "default", cwd: selWs });
+        apiChecked("new-session", { permissionMode: "default", cwd: selWs });
       }
 
       function onSelectWs(w) {
         if (!w || !w.path) return;
         setSelWs(w.path);                       // 立即更新选中态，避免与新会话请求竞态
-        api("set-workspace", { path: w.path });  // 同步服务端“当前工作区”（用于目录/命令等）
+        apiChecked("set-workspace", { path: w.path });  // 同步服务端“当前工作区”（用于目录/命令等）
       }
 
       async function onAddWs() {
@@ -605,16 +961,16 @@ window.__ModuleLoader__.load({
         try {
           const res = await api("pick-directory", {});
           if (res && res.ok && res.path) {
-            const added = await api("ws-add", { path: res.path });
-            if (added && added.ok && added.path) setSelWs(added.path);
+            const added = await apiChecked("ws-add", { path: res.path });
+            if (added && added.path) setSelWs(added.path);
           } else if (res && res.cancelled) {
             // 用户取消，不做任何事
           } else {
-            // 原生选择器不可用/失败：回退到手动输入
-            const p = window.prompt("输入工作区目录路径");
+            // 原生选择器不可用/失败：回退到应用内弹层输入
+            const p = await uiPrompt("输入工作区目录路径");
             if (p && p.trim()) {
-              const added = await api("ws-add", { path: p.trim() });
-              if (added && added.ok && added.path) setSelWs(added.path);
+              const added = await apiChecked("ws-add", { path: p.trim() });
+              if (added && added.path) setSelWs(added.path);
             }
           }
         } finally {
@@ -630,6 +986,14 @@ window.__ModuleLoader__.load({
         });
       }
 
+      // ── 清空当前会话（/clear 语义：重置上下文重新开始，磁盘对话文件保留）──
+      async function onClearSession() {
+        if (!active) return;
+        const yes = await uiConfirm("清空当前会话上下文？\n（界面记录一并清除，磁盘对话文件保留）");
+        if (!yes) return;
+        apiChecked("clear-session", {}, "已清空，可以开始新对话");
+      }
+
       // ── 更新检查 ──
       function openUpdate() {
         setShowUpdate(true);
@@ -642,27 +1006,28 @@ window.__ModuleLoader__.load({
         api("claude-update", {}).then(function (d) { setUpdateInfo(d); setUpdating(false); });
       }
 
-      // ── 会话 / 工作区 重命名与删除 ──
-      function onRenameSession(s) {
+      // ── 会话 / 工作区 重命名与删除（应用内弹层，替代原生 prompt/confirm）──
+      async function onRenameSession(s) {
         const sid = s.id || "";
         if (!sid) return;
-        const t = window.prompt("会话名称", s.title || "");
-        if (t != null) api("session-rename", { sessionId: sid, title: t });
+        const t = await uiPrompt("会话名称", s.title || "");
+        if (t != null) apiChecked("session-rename", { sessionId: sid, title: t }, "已重命名");
       }
-      function onDeleteSession(s) {
+      async function onDeleteSession(s) {
         const sid = s.id || "";
         if (!sid) return;
-        if (window.confirm("删除会话「" + (s.title || sid) + "」？")) api("session-delete", { sessionId: sid });
+        if (await uiConfirm("删除会话「" + (s.title || sid) + "」？\n（同时删除磁盘对话文件，不可恢复）")) {
+          apiChecked("session-delete", { sessionId: sid }, "已删除");
+        }
       }
-      function onRenameWs(w) {
-        const t = window.prompt("工作区显示名（不改目录路径）", w.name || "");
-        if (t != null) api("ws-rename", { path: w.path, name: t });
+      async function onRenameWs(w) {
+        const t = await uiPrompt("工作区显示名（不改目录路径）", w.name || "");
+        if (t != null) apiChecked("ws-rename", { path: w.path, name: t }, "已重命名");
       }
-      function onDeleteWs(w) {
-        if (!window.confirm("从注册表移除工作区「" + (w.name || w.path) + "」？\n（不删除磁盘文件）")) return;
-        api("ws-delete", { path: w.path }).then(function (res) {
-          if (res && res.ok && res.current) setSelWs(res.current);
-        });
+      async function onDeleteWs(w) {
+        if (!(await uiConfirm("从注册表移除工作区「" + (w.name || w.path) + "」？\n（不删除磁盘文件）"))) return;
+        const res = await apiChecked("ws-delete", { path: w.path });
+        if (res && res.current) setSelWs(res.current);
       }
 
       function onInputChange(e) {
@@ -673,16 +1038,54 @@ window.__ModuleLoader__.load({
           const cmds = (catalog.commands || []).map(function (c) { return Object.assign({}, c, { kind: "command" }); });
           const skills = (catalog.skills || []).map(function (s) { return Object.assign({}, s, { kind: "skill" }); });
           const seen = new Set(cmds.map(function (c) { return c.name; }));
-          const items = cmds
-            .concat(skills.filter(function (s) { return !seen.has(s.name); }))
-            .filter(function (c) { return c.name.indexOf(q) === 0; });
+          const all = cmds.concat(skills.filter(function (s) { return !seen.has(s.name); }));
+          // 模糊匹配：前缀 > 包含 > 描述包含；空查询时最近使用优先
+          const recent = getRecentCmds();
+          const kw = q.toLowerCase();
+          const scored = [];
+          for (const c of all) {
+            const name = c.name || "";
+            const desc = (c.description || "").toLowerCase();
+            let rank = -1;
+            if (kw === "") {
+              const ri = recent.indexOf(name);
+              rank = ri === -1 ? 100 : ri;
+            } else if (name.toLowerCase().indexOf(kw) === 0) rank = 0;
+            else if (name.toLowerCase().indexOf(kw) !== -1) rank = 1;
+            else if (desc.indexOf(kw) !== -1) rank = 2;
+            if (rank !== -1) scored.push({ c: c, rank: rank });
+          }
+          scored.sort(function (a, b) { return a.rank - b.rank; });
+          const items = scored.map(function (x) { return x.c; }).slice(0, 30);
           setPop(items.length ? { items: items, sel: 0 } : null);
         } else setPop(null);
       }
 
       function pickCommand(c) {
-        setDraft("/" + c.name + " ");
+        setDraft("/" + c.name + (c.argumentHint ? " " : " "));
         setPop(null);
+        recordRecent(c.name);
+      }
+
+      // 粘贴图片 → 待发送附件（base64）
+      function addImages(fileList) {
+        const files = Array.prototype.slice.call(fileList || []).filter(function (f) { return f && /^image\//.test(f.type); });
+        if (!files.length) return;
+        const room = 4 - pendingImages.length;
+        if (room <= 0) { toast("最多附带 4 张图片", "err"); return; }
+        files.slice(0, room).forEach(function (f) {
+          if (f.size > 4 * 1024 * 1024) { toast("图片过大（>4MB）：" + (f.name || "图片"), "err"); return; }
+          const reader = new FileReader();
+          reader.onload = function () {
+            const dataUrl = String(reader.result || "");
+            const comma = dataUrl.indexOf(",");
+            if (comma === -1) return;
+            setPendingImages(function (p) {
+              return p.length >= 4 ? p : p.concat([{ name: f.name || "图片", mediaType: f.type, data: dataUrl.slice(comma + 1) }]);
+            });
+          };
+          reader.readAsDataURL(f);
+        });
       }
 
       function onResizeStart(e) {
@@ -725,6 +1128,7 @@ window.__ModuleLoader__.load({
           el.removeEventListener("pointercancel", onUp);
           try { if (el.releasePointerCapture) el.releasePointerCapture(pointerId); } catch (e2) {}
           if (typeof document !== "undefined") { document.body.style.userSelect = ""; document.body.style.cursor = ""; }
+          try { localStorage.setItem("ccwGeom", JSON.stringify(geomRef.current)); } catch (e2) {}
         };
         try { if (el.setPointerCapture) el.setPointerCapture(pointerId); } catch (e2) {}
         el.addEventListener("pointermove", onMove);
@@ -752,6 +1156,7 @@ window.__ModuleLoader__.load({
           el.removeEventListener("pointercancel", onUp);
           try { if (el.releasePointerCapture) el.releasePointerCapture(pointerId); } catch (e2) {}
           if (typeof document !== "undefined") { document.body.style.userSelect = ""; document.body.style.cursor = ""; }
+          try { localStorage.setItem("ccwGeom", JSON.stringify(geomRef.current)); } catch (e2) {}
         };
         try { if (el.setPointerCapture) el.setPointerCapture(pointerId); } catch (e2) {}
         el.addEventListener("pointermove", onMove);
@@ -778,6 +1183,7 @@ window.__ModuleLoader__.load({
           el.removeEventListener("pointercancel", onUp);
           try { if (el.releasePointerCapture) el.releasePointerCapture(pointerId); } catch (e2) {}
           if (typeof document !== "undefined") { document.body.style.userSelect = ""; document.body.style.cursor = ""; }
+          saveNum("ccwSidebarW", sidebarWRef.current);
         };
         try { if (el.setPointerCapture) el.setPointerCapture(pointerId); } catch (e2) {}
         el.addEventListener("pointermove", onMove);
@@ -787,10 +1193,47 @@ window.__ModuleLoader__.load({
       }
 
       const messages = active && active.messages ? active.messages : [];
+      // 分页渲染：只渲染最近 N 条，避免长会话整列表全量挂载
+      const startIdx = Math.max(0, messages.length - msgLimit);
+      const visible = startIdx > 0 ? messages.slice(startIdx) : messages;
+      // 待授权卡（≥2 个时显示批量操作）
+      const unanswered = messages.filter(function (m) { return m.role === "control" && m.decision == null && m.requestId; });
+      function answerAll(behavior) {
+        const list = unanswered.slice();
+        if (!list.length) return;
+        let okCount = 0;
+        Promise.all(list.map(function (m) {
+          return api("answer-control", { requestId: m.requestId, behavior: behavior }).then(function (r) { if (r && r.ok) okCount += 1; });
+        })).then(function () {
+          toast("已批量" + (behavior === "deny" ? "拒绝" : "允许") + " " + okCount + "/" + list.length + " 个授权", okCount ? "ok" : "err");
+        });
+      }
+
+      // 成功回合的耗时 / 费用（数据来自 WS 已推送的 lastResult，纯渲染）
+      let resultMeta = null;
+      if (active && (active.status === "done" || active.status === "error") && active.lastResult) {
+        const dur = active.lastResult.durationMs != null ? active.lastResult.durationMs : active.durationMs;
+        const parts = [];
+        if (dur != null) parts.push(formatDuration(dur));
+        if (active.lastResult.costUsd != null) parts.push("$" + (Math.round(active.lastResult.costUsd * 1000) / 1000));
+        if (parts.length) resultMeta = parts.join(" · ");
+      }
 
       const panelStyle = maximized
         ? { left: 8, top: 8, width: "calc(100vw - 16px)", height: "calc(100vh - 16px)" }
         : { left: geom.left, top: geom.top, width: geom.width, height: geom.height };
+
+      // 最小化：收起为角落胶囊（WS 保持连接，状态持续推送）
+      if (minimized) {
+        return React.createElement("button", {
+          className: "ccw-mini-pill", title: "点击恢复 Claude Code 面板",
+          onClick: function () { setMinimized(false); },
+        },
+          React.createElement(ClaudeLogo, { size: 14 }),
+          "Claude Code",
+          React.createElement("span", { style: { display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: conn ? "#22c55e" : "#9ca3af" } }),
+        );
+      }
 
       return React.createElement("div", {
         className: "ccw",
@@ -798,15 +1241,20 @@ window.__ModuleLoader__.load({
       },
         React.createElement("div", { className: "ccw-titlebar", onPointerDown: beginDrag, title: maximized ? "" : "拖拽移动面板" },
           React.createElement("span", { className: "ccw-brand" }, React.createElement(ClaudeLogo, { size: 15 }), "Claude Code"),
-          React.createElement("span", { className: "ccw-conn" }, conn ? "🟢 已连接" : "🔴 未连接"),
+          React.createElement("span", { className: "ccw-conn" }, conn ? "🟢 已连接" : (reconn > 0 ? "🟡 重连中(第" + reconn + "次)" : "🔴 未连接")),
           React.createElement("div", { style: { flex: 1 } }),
+          React.createElement("button", { className: "ccw-max", title: "最小化到角落", onClick: function () {
+            if (dialog) { dialog.resolve(null); setDialog(null); }
+            setMinimized(true);
+          } }, "—"),
           React.createElement("button", { className: "ccw-max", title: maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, maximized ? "还原" : "最大化"),
           React.createElement("button", { className: "ccw-close", title: "关闭", onClick: () => setOpen(false) }, "✕"),
         ),
         maximized ? null : React.createElement("div", { className: "ccw-resize-se", onPointerDown: beginPanelResize, title: "拖拽调整面板尺寸" }),
         React.createElement("div", { className: "ccw-topbar" },
           React.createElement("span", { className: "ccw-dim" }, active ? (active.title || "会话") : "暂无活跃会话"),
-          active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs, now: now }) : null,
+          active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
+          resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时与费用" }, "· " + resultMeta) : null,
           React.createElement("div", { style: { flex: 1 } }),
           React.createElement("select", {
             className: "ccw-btn small",
@@ -817,6 +1265,8 @@ window.__ModuleLoader__.load({
             React.createElement("option", { value: "" }, "默认模型"),
             models.map(function (mm) { return React.createElement("option", { key: mm.id, value: mm.id }, mm.label); }),
           ),
+          React.createElement("button", { className: "ccw-btn small", onClick: onClearSession, disabled: !active, title: "清空当前会话上下文，重新开始（磁盘对话文件保留）" }, "🧹 清空"),
+          React.createElement("button", { className: "ccw-btn small", onClick: function () { refetchCatalog(); toast("已刷新指令与模型列表", "ok"); }, title: "刷新指令与模型列表（在 ~/.claude 新增指令后无需重开面板）" }, "⟳"),
           React.createElement("button", { className: "ccw-btn small", onClick: openUpdate, title: "检查并更新本机 Claude Code" }, "🔄 检查更新"),
         ),
         React.createElement("div", { className: "ccw-body" },
@@ -839,12 +1289,20 @@ window.__ModuleLoader__.load({
                 stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
               },
             },
+              unanswered.length >= 2 ? React.createElement("div", { className: "ccw-batchbar" },
+                "⚠ " + unanswered.length + " 个工具待授权",
+                React.createElement("button", { className: "ccw-btn small primary", onClick: function () { answerAll("allow"); } }, "全部允许"),
+                React.createElement("button", { className: "ccw-btn small danger", onClick: function () { answerAll("deny"); } }, "全部拒绝"),
+              ) : null,
               messages.length === 0
                 ? React.createElement("div", { className: "ccw-empty" }, "开始一个新会话，或从左侧选择历史会话")
-                : messages.map(function (m, i) {
-                    const live = running && i === messages.length - 1;
-                    return React.createElement(MessageView, { key: m.id != null ? m.id : Math.random(), msg: m, live: live });
-                  }),
+                : null,
+              startIdx > 0 ? React.createElement("button", { className: "ccw-btn small ccw-loadmore", onClick: loadMore }, "加载更早（还有 " + startIdx + " 条）") : null,
+              visible.map(function (m, vi) {
+                const i = startIdx + vi;
+                const live = running && i === messages.length - 1;
+                return React.createElement(MessageView, { key: m.id != null ? m.id : "i" + i, msg: m, live: live, onFill: fillInput });
+              }),
               active && active.status === "starting" ? React.createElement("div", { className: "ccw-msg assistant" }, "…") : null,
             ),
           ),
@@ -858,17 +1316,41 @@ window.__ModuleLoader__.load({
                 onMouseDown: () => pickCommand(c),
               },
                 React.createElement("span", { className: "ccw-pop-kind" + (c.kind === "skill" ? " skill" : "") }, c.kind === "skill" ? "技能" : "指令"),
-                "/" + c.name + " — " + (c.description || ""));
+                "/" + c.name,
+                c.argumentHint ? React.createElement("span", { className: "ccw-pop-hint" }, " " + c.argumentHint) : null,
+                " — " + (c.description || ""),
+                i === pop.sel ? React.createElement("span", { className: "ccw-pop-hint" }, "（Enter 发送 / Tab 补全）") : null,
+              );
+            }),
+          ) : null,
+          queued ? React.createElement("div", { className: "ccw-queued" },
+            "⏳ 运行结束后将自动发送：" + (queued.length > 60 ? queued.slice(0, 60) + "…" : queued),
+            React.createElement("button", { className: "ccw-icbtn", title: "取消排队", onClick: function () { setQueued(null); } }, "×"),
+          ) : null,
+          pendingImages.length ? React.createElement("div", { className: "ccw-img-chips" },
+            pendingImages.map(function (im, ix) {
+              return React.createElement("span", { key: ix, className: "ccw-img-chip" },
+                "🖼 " + (im.name || "图片"),
+                React.createElement("button", { className: "ccw-icbtn", title: "移除", onClick: function () { setPendingImages(function (p) { return p.filter(function (_, j) { return j !== ix; }); }); } }, "×"),
+              );
             }),
           ) : null,
           React.createElement("div", { className: "ccw-resize", onMouseDown: onResizeStart, title: "拖拽调整输入框高度" }),
           React.createElement("div", { className: "ccw-input-row" },
             React.createElement("textarea", {
+              ref: inputRef,
               className: "ccw-input",
               style: inputH ? { height: inputH + "px" } : null,
-              placeholder: "输入消息，Enter 发送，Shift+Enter 换行（/ 开头触发命令）",
+              placeholder: "输入消息，Enter 发送，Shift+Enter 换行；/ 触发指令（Tab 补全）；可粘贴图片；↑ 调上一条",
               value: draft,
               onChange: onInputChange,
+              onPaste: function (e) {
+                const files = e.clipboardData && e.clipboardData.files;
+                if (files && files.length) {
+                  const imgs = Array.prototype.filter.call(files, function (f) { return /^image\//.test(f.type); });
+                  if (imgs.length) { e.preventDefault(); addImages(imgs); }
+                }
+              },
               onKeyDown: function (e) {
                 if (e.key === "Escape") { setPop(null); return; }
                 if (pop && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
@@ -877,15 +1359,36 @@ window.__ModuleLoader__.load({
                   setPop(function (p) { return p ? { items: p.items, sel: (p.sel + dir + p.items.length) % p.items.length } : p; });
                   return;
                 }
-                if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
-                  if (pop && pop.items[pop.sel]) { e.preventDefault(); pickCommand(pop.items[pop.sel]); return; }
+                if (e.key === "Tab" && pop && pop.items[pop.sel]) {
                   e.preventDefault();
+                  pickCommand(pop.items[pop.sel]);
+                  return;
+                }
+                const h = histRef.current;
+                if (!pop && e.key === "ArrowUp" && draft === "" && h.list.length) {
+                  e.preventDefault();
+                  h.idx = h.idx < 0 ? h.list.length - 1 : Math.max(0, h.idx - 1);
+                  setDraft(h.list[h.idx]);
+                  return;
+                }
+                if (!pop && e.key === "ArrowDown" && h.idx >= 0) {
+                  e.preventDefault();
+                  const idx = h.idx + 1;
+                  if (idx >= h.list.length) { h.idx = -1; setDraft(""); }
+                  else { h.idx = idx; setDraft(h.list[idx]); }
+                  return;
+                }
+                if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+                  e.preventDefault();
+                  // 输入内容与高亮命令完全一致时直接发送，省一次回车
+                  if (pop && pop.items[pop.sel] && draft.trim() === "/" + pop.items[pop.sel].name) { send(); return; }
+                  if (pop && pop.items[pop.sel]) { pickCommand(pop.items[pop.sel]); return; }
                   send();
                 }
               },
             }),
             running
-              ? React.createElement("button", { className: "ccw-btn danger", onClick: () => api("stop", {}) }, "⏹ 停止")
+              ? React.createElement("button", { className: "ccw-btn danger", onClick: function () { apiChecked("stop", {}); } }, "⏹ 停止")
               : React.createElement("button", { className: "ccw-btn primary", onClick: send }, "发送"),
           ),
         ),
@@ -916,6 +1419,37 @@ window.__ModuleLoader__.load({
             ),
           ),
         ) : null,
+        dialog ? React.createElement("div", {
+          className: "ccw-modal",
+          onClick: function (e) { if (e.target === e.currentTarget) { dialog.resolve(null); setDialog(null); } },
+        },
+          React.createElement("div", { className: "ccw-modal-box", style: { width: "min(440px,90vw)" } },
+            React.createElement("div", { className: "ccw-modal-head" }, dialog.title),
+            dialog.kind === "prompt" ? React.createElement("input", {
+              ref: dialogInputRef,
+              className: "ccw-dialog-input",
+              defaultValue: dialog.value,
+              autoFocus: true,
+              onKeyDown: function (e) {
+                if (e.key === "Enter") { e.preventDefault(); dialog.resolve(dialogInputRef.current ? dialogInputRef.current.value : null); setDialog(null); }
+                if (e.key === "Escape") { dialog.resolve(null); setDialog(null); }
+              },
+            }) : null,
+            React.createElement("div", { className: "ccw-modal-actions" },
+              React.createElement("button", { className: "ccw-btn small", onClick: function () { dialog.resolve(null); setDialog(null); } }, "取消"),
+              React.createElement("button", { className: "ccw-btn small primary", onClick: function () {
+                const v = dialog.kind === "prompt" ? (dialogInputRef.current ? dialogInputRef.current.value : null) : true;
+                dialog.resolve(v);
+                setDialog(null);
+              } }, dialog.kind === "prompt" ? "确定" : "确认"),
+            ),
+          ),
+        ) : null,
+        React.createElement("div", { className: "ccw-toasts" },
+          toasts.map(function (t) {
+            return React.createElement("div", { key: t.id, className: "ccw-toast " + t.kind }, t.text);
+          }),
+        ),
       );
     }
 
@@ -928,7 +1462,7 @@ window.__ModuleLoader__.load({
       return React.createElement("button", {
         type: "button",
         className: "ccw-toggle" + (open ? " ccw-toggle-active" : ""),
-        title: "Claude Code 工作台",
+        title: "Claude Code 工作台（Alt+C 开关）",
         "aria-pressed": open,
         onClick: () => setOpen(!open),
       }, React.createElement(ClaudeLogo, { size: 14 }), wide ? React.createElement("span", null, "Claude Code") : null);
