@@ -188,12 +188,23 @@ function newRecord(permissionMode, cwd) {
     sessionRules: [],
     startedAt: null,
     durationMs: null,
+    mtimeMs: 0,
   }
 }
 
 function pushMsg(r, m) {
+  if (m.ts == null) m.ts = Date.now()
   r.messages.push(m)
-  if (r.messages.length > 500) r.messages.splice(0, r.messages.length - 500)
+  if (r.messages.length > 500) {
+    const removed = r.messages.splice(0, r.messages.length - 500)
+    if (r._byKey) for (const x of removed) { if (x && x.messageKey != null) delete r._byKey[x.messageKey] }
+  }
+  // messageKey -> 消息对象索引：流式增量按 key 定位，避免每次线性扫 500 条
+  if (m.messageKey != null) {
+    if (!r._byKey) r._byKey = {}
+    r._byKey[m.messageKey] = m
+  }
+  r.mtimeMs = Date.now()
   markDirty()
 }
 
@@ -263,7 +274,7 @@ function snapshot() {
       status: r.status,
       active: r.key === activeId,
       source: 'runtime',
-      mtimeMs: now,
+      mtimeMs: r.mtimeMs || now,
     })
   })
 
@@ -319,8 +330,11 @@ function snapshot() {
 
 function handleMessage(r, msg) {
   if (!msg || typeof msg !== 'object') return
-  markDirty()
+  r.mtimeMs = Date.now()
   const type = msg.type
+  // 流式文本增量走 markStreamDirty（轻量帧）；其余消息照旧触发全量快照
+  const isStreamDelta = type === 'stream_event' && msg.event && msg.event.type === 'content_block_delta'
+  if (!isStreamDelta) markDirty()
   if (type === 'system') {
     if (msg.subtype === 'init') {
       r.sessionId = msg.session_id || r.sessionId
@@ -328,16 +342,27 @@ function handleMessage(r, msg) {
       r.model = msg.model || r.model
       r.permissionMode = msg.permissionMode || r.permissionMode
       r.status = 'running'
+    } else if (msg.subtype === 'compact_boundary') {
+      // /compact 压缩完成：CLI 只发 system 事件，若不落一条可见消息，界面上毫无反馈
+      const meta = msg.compact_metadata || {}
+      const parts = []
+      if (meta.trigger) parts.push('触发：' + meta.trigger)
+      if (meta.pre_tokens != null) parts.push('压缩前 ' + meta.pre_tokens + ' tokens')
+      if (meta.post_tokens != null) parts.push('压缩后 ' + meta.post_tokens + ' tokens')
+      const txt = '🧹 上下文已压缩' + (parts.length ? '（' + parts.join('，') + '）' : '')
+      pushMsg(r, { id: r.counter++, role: 'result', text: txt, isError: false })
     }
     return
   }
   if (type === 'assistant' && msg.message) {
     const m = msg.message
     const key = m.id || ('m' + (++r.counter))
-    let am = null
-    for (let i = 0; i < r.messages.length; i++) {
-      const x = r.messages[i]
-      if (x.role === 'assistant' && x.messageKey === key) { am = x; break }
+    let am = (r._byKey && r._byKey[key]) || null
+    if (!am) {
+      for (let i = 0; i < r.messages.length; i++) {
+        const x = r.messages[i]
+        if (x.role === 'assistant' && x.messageKey === key) { am = x; break }
+      }
     }
     const streamed = r._streamedKeys && r._streamedKeys.has(key)
     if (!am) {
@@ -369,10 +394,12 @@ function handleMessage(r, msg) {
       r._streamKey = key
       if (!r._streamedKeys) r._streamedKeys = new Set()
       r._streamedKeys.add(key)
-      let am = null
-      for (let i = 0; i < r.messages.length; i++) {
-        const x = r.messages[i]
-        if (x.role === 'assistant' && x.messageKey === key) { am = x; break }
+      let am = (r._byKey && r._byKey[key]) || null
+      if (!am) {
+        for (let i = 0; i < r.messages.length; i++) {
+          const x = r.messages[i]
+          if (x.role === 'assistant' && x.messageKey === key) { am = x; break }
+        }
       }
       if (!am) {
         pushMsg(r, { id: r.counter++, role: 'assistant', messageKey: key, model: '', text: '', thinking: '' })
@@ -380,10 +407,12 @@ function handleMessage(r, msg) {
       return
     }
     if (ev.type === 'content_block_delta' && ev.delta && r._streamKey) {
-      let am = null
-      for (let i = 0; i < r.messages.length; i++) {
-        const x = r.messages[i]
-        if (x.role === 'assistant' && x.messageKey === r._streamKey) { am = x; break }
+      let am = (r._byKey && r._byKey[r._streamKey]) || null
+      if (!am) {
+        for (let i = 0; i < r.messages.length; i++) {
+          const x = r.messages[i]
+          if (x.role === 'assistant' && x.messageKey === r._streamKey) { am = x; break }
+        }
       }
       if (!am) return
       if (ev.delta.type === 'thinking_delta' && ev.delta.thinking) {
@@ -391,6 +420,8 @@ function handleMessage(r, msg) {
       } else if (ev.delta.type === 'text_delta' && ev.delta.text) {
         if (am.text.length < 200000) am.text += ev.delta.text
       }
+      // 只推轻量增量帧，避免每 80ms 全量快照
+      markStreamDirty(r, am)
     }
     return
   }
@@ -639,13 +670,32 @@ function sendMessage(args) {
   r.permissionMode = permissionMode
   if (a.model !== undefined) r.model = a.model || ''
   if (!r.title) r.title = text.length > 40 ? text.slice(0, 40) : text
-  pushMsg(r, { id: r.counter++, role: 'user', text: text })
+  // 图片附件（base64）：与文本一起作为 content 块发给 Claude；记录里只留元信息（mediaType）避免快照膨胀
+  const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+  const images = []
+  if (Array.isArray(a.images)) {
+    for (const im of a.images) {
+      if (!im || typeof im !== 'object') continue
+      if (IMAGE_TYPES.indexOf(im.mediaType) === -1) continue
+      if (typeof im.data !== 'string' || !im.data || im.data.length > 8 * 1024 * 1024) continue
+      images.push({ mediaType: im.mediaType, data: im.data })
+      if (images.length >= 4) break
+    }
+  }
+  pushMsg(r, {
+    id: r.counter++, role: 'user', text: text,
+    images: images.length ? images.map(function (im) { return { mediaType: im.mediaType } }) : undefined,
+  })
   const res = ensureQuery(r)
   if (!res.ok) return res
   r.status = 'running'
   markDirty()
   try {
-    r.inputQueue.push({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: expanded }] } })
+    const content = [{ type: 'text', text: expanded }]
+    for (const im of images) {
+      content.push({ type: 'image', source: { type: 'base64', media_type: im.mediaType, data: im.data } })
+    }
+    r.inputQueue.push({ type: 'user', message: { role: 'user', content: content } })
   } catch (e) {
     r.status = 'error'
     r.error = String(e && e.message ? e.message : e)
@@ -661,6 +711,25 @@ function stopSession() {
   if (r.query && typeof r.query.interrupt === 'function') { try { r.query.interrupt() } catch (e) {} }
   denyAllPendingControls(r, '已停止')
   if (r.status === 'running' || r.status === 'starting') r.status = 'stopped'
+  markDirty()
+  return { ok: true }
+}
+
+// 清空当前会话（对应 CLI 的 /clear 语义，SDK 不支持直接发 /clear，故在插件侧重置）：
+// 终止进行中的查询，重置上下文与界面记录；磁盘对话文件保留，可随时从历史切回
+function clearSession() {
+  const r = activeId && runtime.has(activeId) ? runtime.get(activeId) : null
+  if (!r) return { ok: false, error: '无活动会话' }
+  killQuery(r)
+  r.sessionId = null
+  r.messages = []
+  r.counter = 0
+  r._byKey = {}
+  r.status = 'idle'
+  r.lastResult = null
+  r.startedAt = null
+  r.durationMs = null
+  r.error = null
   markDirty()
   return { ok: true }
 }
@@ -949,11 +1018,42 @@ function parseFrontmatter(text) {
   return { fm: fm, body: text.slice(m[0].length) }
 }
 
+// 目录缓存：以「文件清单 + mtime」为指纹，未变化时直接复用上次解析结果（避免每次重读全部 md）
+let catalogCache = { stamp: null, data: null }
+
 function readCatalog() {
   const home = os.homedir()
   const commandDirs = [path.join(home, '.claude', 'commands'), path.join(workspaceDir, '.claude', 'commands')]
   const agentDirs = [path.join(home, '.claude', 'agents'), path.join(workspaceDir, '.claude', 'agents')]
   const skillDirs = [path.join(home, '.claude', 'skills'), path.join(workspaceDir, '.claude', 'skills')]
+
+  // 指纹：所有相关文件的路径 + mtime（廉价 stat，文件内容变化时才会重新解析）
+  const stampParts = []
+  function stampDir(d) {
+    let names = []
+    try { names = fs.readdirSync(d) } catch (e) { stampParts.push(d + '|-'); return }
+    names.sort()
+    for (const f of names) {
+      let mt = 0
+      try { mt = fs.statSync(path.join(d, f)).mtimeMs } catch (e) {}
+      stampParts.push(d + '|' + f + '|' + mt)
+    }
+  }
+  for (const d of commandDirs) stampDir(d)
+  for (const d of agentDirs) stampDir(d)
+  for (const d of skillDirs) {
+    let subs = []
+    try { subs = fs.readdirSync(d) } catch (e) { stampParts.push(d + '|-'); continue }
+    subs.sort()
+    for (const sub of subs) {
+      let mt = 0
+      try { mt = fs.statSync(path.join(d, sub, 'SKILL.md')).mtimeMs } catch (e) {}
+      stampParts.push(d + '|' + sub + '|' + mt)
+    }
+  }
+  const stamp = stampParts.join('\n')
+  if (catalogCache.data && catalogCache.stamp === stamp) return catalogCache.data
+
   const commands = []
   const agents = []
   const skills = []
@@ -973,6 +1073,12 @@ function readCatalog() {
         '4. 用简洁的中文编写 CLAUDE.md，包含：项目概述、常用命令、架构说明、注意事项。',
         '$ARGUMENTS',
       ].join('\n'),
+    },
+    {
+      name: 'compact',
+      description: '上下文压缩',
+      argumentHint: '',
+      body: '',
     },
   ]
 
@@ -1032,7 +1138,9 @@ function readCatalog() {
     }
   }
 
-  return { commands: commands, agents: agents, skills: skills }
+  const result = { commands: commands, agents: agents, skills: skills }
+  catalogCache = { stamp: stamp, data: result }
+  return result
 }
 
 function readModels() {
@@ -1227,7 +1335,7 @@ async function sessionRename(sid, title) {
     return { ok: false, error: String(e && e.message ? e.message : e) }
   }
   // 同步内存中的运行时记录与历史缓存
-  runtime.forEach(function (v) { if (v.sessionId === sid) v.title = String(title).slice(0, 80) })
+  runtime.forEach(function (v) { if (v.sessionId === sid) { v.title = String(title).slice(0, 80); v.mtimeMs = Date.now() } })
   const h = history.find(function (x) { return x.id === sid })
   if (h) h.title = String(title).slice(0, 80)
   markDirty()
@@ -1400,6 +1508,27 @@ function markDirty() {
   }, wait)
 }
 
+// 流式增量帧：只广播正在输出的那一条消息（全量快照每 80ms 一帧太重，长会话下是几百 KB 级）
+let streamDirty = false
+let streamLastSent = 0
+let streamPending = null
+function markStreamDirty(r, am) {
+  streamPending = { key: r.key, messageKey: am.messageKey, text: am.text, thinking: am.thinking }
+  if (streamDirty) return
+  streamDirty = true
+  const wait = Math.max(0, WS_MIN_INTERVAL - (Date.now() - streamLastSent))
+  setTimeout(function () {
+    streamDirty = false
+    streamLastSent = Date.now()
+    if (wsClients.size === 0 || !streamPending) return
+    const payload = JSON.stringify({ type: 'stream-delta', delta: streamPending })
+    streamPending = null
+    for (const c of wsClients) {
+      try { if (c.readyState === WsSocket.OPEN) c.send(payload) } catch (e) {}
+    }
+  }, wait)
+}
+
 // WebSocket 升级处理器（由宿主半部经 webServer.registerUpgrade 调用）。
 // 处理器拥有协议握手：这里用 ws 的 handleUpgrade 完成 RFC6455 握手。
 function handleUpgrade(req, socket, head) {
@@ -1475,7 +1604,7 @@ async function handleRequest(req, res) {
         res.end('Upgrade Required')
         return
       }
-      if (req.method === 'GET' && u.pathname === '/api/state') return sendJson(res, snapshot())
+      // /api/state 轮询端点已移除：客户端全部走 WebSocket 推送，禁止轮询
       if (req.method === 'GET' && u.pathname === '/api/workspace') {
         return sendJson(res, { ok: true, path: workspaceDir, home: os.homedir() })
       }
@@ -1495,6 +1624,7 @@ async function handleRequest(req, res) {
           case '/api/new-session': return sendJson(res, newSession(body))
           case '/api/send': return sendJson(res, sendMessage(body))
           case '/api/stop': return sendJson(res, stopSession())
+          case '/api/clear-session': return sendJson(res, clearSession())
           case '/api/switch': return sendJson(res, switchSession(body))
           case '/api/answer-control': return sendJson(res, answerControl(body))
           case '/api/refresh-history': return sendJson(res, refreshHistory())
@@ -1546,6 +1676,7 @@ module.exports = {
   newSession,
   sendMessage,
   stopSession,
+  clearSession,
   switchSession,
   answerControl,
   refreshHistory,
@@ -1567,6 +1698,13 @@ module.exports = {
 if (require.main === module) {
   initServer()
   const server = http.createServer(handleRequest)
+  // 独立运行也要接 WebSocket 升级（内嵌模式由宿主半部的 webServer.registerUpgrade 接线）
+  server.on('upgrade', function (req, socket, head) {
+    let pathname = ''
+    try { pathname = new URL(req.url, 'http://localhost').pathname } catch (e) {}
+    if (pathname === '/api/stream') handleUpgrade(req, socket, head)
+    else { try { socket.destroy() } catch (e) {} }
+  })
   server.listen(PORT, '127.0.0.1', function () {
   console.log('')
   console.log('  Claude Code 工作空间已启动')
