@@ -146,6 +146,24 @@ window.__ModuleLoader__.load({
 .ccw-modal-head { font-weight:600; font-size:14px; margin-bottom:10px; white-space:pre-wrap; }
 .ccw-modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
 .ccw-modal-log { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(0,0,0,.05); border-radius:6px; padding:8px; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin-top:8px; }
+.ccw-main { position:relative; }
+.ccw-searchbar { flex:none; display:flex; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); background:var(--dsw-alias-bg-layer-1,#f9fafb); }
+.ccw-search-input { flex:1; min-width:0; padding:5px 9px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; font-size:12px; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
+.ccw-search-input:focus { outline:none; border-color:#4f8cff; }
+.ccw-search-count { flex:none; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; }
+.ccw-msg.ccw-search-hit { outline:2px solid #f59e0b; outline-offset:2px; box-shadow:0 0 0 5px rgba(245,158,11,.22); }
+.ccw-mark { background:rgba(250,204,21,.5); color:inherit; border-radius:2px; padding:0 1px; }
+.ccw-msg.user .ccw-mark { background:#fde047; color:#1f2937; }
+.ccw-turn { align-self:stretch; display:flex; align-items:center; gap:10px; color:var(--dsw-alias-label-secondary,#9ca3af); font-size:11px; margin:4px 0; white-space:nowrap; }
+.ccw-turn::before, .ccw-turn::after { content:""; flex:1; height:1px; background:var(--dsw-alias-border-l1,#e5e7eb); }
+.ccw-toc { position:absolute; top:8px; right:10px; width:min(280px, 62%); max-height:74%; display:flex; flex-direction:column; background:var(--dsw-alias-bg-base,#151517); color:var(--dsw-alias-label-primary,#1f2937); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,.28); z-index:50; overflow:hidden; }
+.ccw-toc-head { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); font-weight:600; font-size:12px; }
+.ccw-toc-list { overflow-y:auto; padding:4px; }
+.ccw-toc-item { display:flex; align-items:baseline; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; }
+.ccw-toc-item:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
+.ccw-toc-n { flex:none; font-weight:600; color:#2563eb; min-width:46px; }
+.ccw-toc-time { flex:none; font-size:10px; color:var(--dsw-alias-label-secondary,#9ca3af); }
+.ccw-toc-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dsw-alias-label-secondary,#9ca3af); }
 `;
 
     let cssInjected = false;
@@ -399,7 +417,79 @@ window.__ModuleLoader__.load({
     // ------------------------------------------------------------------
     // 消息渲染
     // ------------------------------------------------------------------
-    function ControlCard({ msg }) {
+    // 提取一条消息的可搜索文本（会话内搜索基于它）
+    function messageSearchText(m) {
+      if (!m) return "";
+      const parts = [];
+      if (m.role === "tool") { parts.push(m.name, m.result); }
+      else if (m.role === "control") { parts.push(m.displayName, m.toolName, m.input); }
+      else { parts.push(m.text, m.thinking); }
+      return parts.map(function (p) { return p == null ? "" : String(p); }).join("\n");
+    }
+    // 轮次摘要：用户消息压平后截断，供目录展示
+    function turnSnippet(text) {
+      const s = String(text == null ? "" : text).replace(/\s+/g, " ").trim();
+      return s.length > 40 ? s.slice(0, 40) + "…" : s;
+    }
+    // 纯文本内联高亮：大小写不敏感地把命中片段包成 <mark>（返回 React 节点）
+    function highlightNodes(text, query) {
+      const s = String(text == null ? "" : text);
+      const q = String(query || "").trim();
+      if (!q) return s;
+      const ql = q.toLowerCase();
+      const sl = s.toLowerCase();
+      const nodes = [];
+      let last = 0;
+      let idx = sl.indexOf(ql);
+      while (idx !== -1) {
+        if (idx > last) nodes.push(s.slice(last, idx));
+        nodes.push(React.createElement("mark", { key: idx, className: "ccw-mark" }, s.slice(idx, idx + ql.length)));
+        last = idx + ql.length;
+        idx = sl.indexOf(ql, last);
+      }
+      if (last < s.length) nodes.push(s.slice(last));
+      return nodes.length ? nodes : s;
+    }
+    // 在已渲染的 HTML 文本节点内做内联高亮（不触碰标签；跳过 &...; 实体避免破坏转义）
+    function highlightPlainSegment(text, ql) {
+      if (!ql) return text;
+      const tl = text.toLowerCase();
+      let out = "";
+      let i = 0;
+      const n = text.length;
+      while (i < n) {
+        if (text[i] === "&") {
+          const semi = text.indexOf(";", i);
+          if (semi !== -1 && semi - i <= 10) { out += text.slice(i, semi + 1); i = semi + 1; continue; }
+          out += text[i]; i += 1; continue;
+        }
+        if (tl.startsWith(ql, i)) {
+          out += '<mark class="ccw-mark">' + text.slice(i, i + ql.length) + "</mark>";
+          i += ql.length;
+        } else { out += text[i]; i += 1; }
+      }
+      return out;
+    }
+    function highlightHtml(html, query) {
+      const q = String(query || "").trim();
+      if (!q) return html;
+      const ql = q.toLowerCase();
+      let out = "";
+      let i = 0;
+      const n = html.length;
+      while (i < n) {
+        const lt = html.indexOf("<", i);
+        if (lt === -1) { out += highlightPlainSegment(html.slice(i), ql); break; }
+        out += highlightPlainSegment(html.slice(i, lt), ql);
+        const gt = html.indexOf(">", lt);
+        if (gt === -1) { out += html.slice(lt); break; }
+        out += html.slice(lt, gt + 1);
+        i = gt + 1;
+      }
+      return out;
+    }
+
+    function ControlCard({ msg, hl, dataIndex, query }) {
       const [expanded, setExpanded] = React.useState(false);
       const answered = msg.decision != null;
       const label = answered
@@ -407,11 +497,11 @@ window.__ModuleLoader__.load({
         : null;
       const inputText = typeof msg.input === "string" ? msg.input : JSON.stringify(msg.input || {});
       const tooLong = String(inputText).length > 2000;
-      return React.createElement("div", { className: "ccw-msg ccw-ctl" },
+      return React.createElement("div", { className: "ccw-msg ccw-ctl" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
         React.createElement("div", { className: "ccw-ctl-head" },
-          "🔐 " + (msg.displayName || msg.toolName || "工具") + " 请求授权"),
+          "🔐 ", highlightNodes(msg.displayName || msg.toolName || "工具", query), " 请求授权"),
         inputText ? React.createElement("div", { className: "ccw-ctl-input" },
-          expanded ? String(inputText) : String(inputText).slice(0, 2000),
+          highlightNodes(expanded ? String(inputText) : String(inputText).slice(0, 2000), query),
           tooLong ? React.createElement("button", {
             type: "button", className: "ccw-think-toggle", style: { marginTop: 4, marginBottom: 0 },
             onClick: function () { setExpanded(function (v) { return !v; }); },
@@ -440,17 +530,22 @@ window.__ModuleLoader__.load({
         && a.msg.result === b.msg.result
         && a.msg.isError === b.msg.isError
         && a.live === b.live
-        && a.onFill === b.onFill;
+        && a.onFill === b.onFill
+        && a.hl === b.hl
+        && a.dataIndex === b.dataIndex
+        && a.query === b.query;
     }
-    const MessageView = React.memo(function MessageView({ msg, live, onFill }) {
+    const MessageView = React.memo(function MessageView({ msg, live, onFill, hl, dataIndex, query }) {
       const [thinkingOpen, setThinkingOpen] = React.useState(false);
       const [toolOpen, setToolOpen] = React.useState(false);
       // Markdown 解析按内容缓存：整树重渲染时不再对每条消息重跑正则
       const mdHtml = React.useMemo(function () { return renderMarkdown(msg.text); }, [msg.text]);
+      // 命中词在渲染后的 HTML 内做内联高亮（标签/实体不触碰）
+      const mdHighlighted = React.useMemo(function () { return query ? highlightHtml(mdHtml, query) : mdHtml; }, [mdHtml, query]);
       const ts = msg.ts ? formatClock(msg.ts) : "";
       if (msg.role === "user") {
-        return React.createElement("div", { className: "ccw-msg user" },
-          msg.text || "",
+        return React.createElement("div", { className: "ccw-msg user" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+          highlightNodes(msg.text, query),
           msg.images && msg.images.length ? React.createElement("div", { style: { opacity: .8, marginTop: 2 } }, "🖼 图片 ×" + msg.images.length) : null,
           onFill ? React.createElement("button", {
             type: "button", className: "ccw-umsg-edit", title: "填入输入框重新编辑",
@@ -462,7 +557,7 @@ window.__ModuleLoader__.load({
       if (msg.role === "assistant") {
         const hasThinking = !!msg.thinking;
         const thinkingActive = hasThinking && !!live && !msg.text;
-        return React.createElement("div", { className: "ccw-msg assistant" },
+        return React.createElement("div", { className: "ccw-msg assistant" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
           hasThinking ? React.createElement("button", {
             type: "button",
             className: "ccw-think-toggle" + (thinkingOpen ? " open" : ""),
@@ -473,10 +568,10 @@ window.__ModuleLoader__.load({
             React.createElement("span", { className: "ccw-think-label" }, thinkingActive ? "思考中…" : "思考过程"),
             thinkingActive ? React.createElement("span", { className: "ccw-think-pulse" }) : null,
           ) : null,
-          hasThinking && thinkingOpen ? React.createElement("div", { className: "ccw-thinking" }, msg.thinking) : null,
+          hasThinking && thinkingOpen ? React.createElement("div", { className: "ccw-thinking" }, highlightNodes(msg.thinking, query)) : null,
           React.createElement("div", {
             className: "ccw-md",
-            dangerouslySetInnerHTML: { __html: mdHtml },
+            dangerouslySetInnerHTML: { __html: mdHighlighted },
             onClick: function (e) {
               // 代码块复制按钮（dangerouslySetInnerHTML 内的元素无法绑 React 事件，用事件委托）
               const t = e.target;
@@ -497,23 +592,23 @@ window.__ModuleLoader__.load({
       }
       if (msg.role === "tool") {
         const hasResult = msg.result != null && String(msg.result).length > 0;
-        return React.createElement("div", { className: "ccw-msg tool" },
-          "🛠 " + (msg.name || "工具") + (msg.status === "running" ? "（运行中…）" : " ✓"),
+        const r = hasResult ? String(msg.result) : "";
+        const shown = r.length > 20000 ? r.slice(0, 20000) + "\n…（过长已截断）" : r;
+        return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+          "🛠 ", highlightNodes(msg.name || "工具", query), (msg.status === "running" ? "（运行中…）" : " ✓"),
           hasResult ? React.createElement("button", {
             type: "button", className: "ccw-think-toggle", style: { marginLeft: 6, marginBottom: 0 },
             onClick: function () { setToolOpen(function (v) { return !v; }); },
           }, toolOpen ? "▾ 收起输出" : "▸ 查看输出") : null,
-          hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-out" },
-            String(msg.result).length > 20000 ? String(msg.result).slice(0, 20000) + "\n…（过长已截断）" : String(msg.result),
-          ) : null,
+          hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-out" }, highlightNodes(shown, query)) : null,
         );
       }
       if (msg.role === "result") {
-        return React.createElement("div", { className: "ccw-msg result" + (msg.isError ? " err" : "") },
-          (msg.isError ? "⚠ " : "✓ ") + (msg.text || ""));
+        return React.createElement("div", { className: "ccw-msg result" + (msg.isError ? " err" : "") + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+          (msg.isError ? "⚠ " : "✓ "), highlightNodes(msg.text, query));
       }
       if (msg.role === "control") {
-        return React.createElement(ControlCard, { msg: msg });
+        return React.createElement(ControlCard, { msg: msg, hl: hl, dataIndex: dataIndex, query: query });
       }
       return null;
     }, messagePropsEqual);
@@ -688,6 +783,13 @@ window.__ModuleLoader__.load({
       const [queued, setQueued] = React.useState(null);
       const [pendingImages, setPendingImages] = React.useState([]);
       const [msgLimit, setMsgLimit] = React.useState(120);
+      // 会话内搜索 + 轮次目录（全部本地渲染，无任何网络轮询）
+      const [searchOpen, setSearchOpen] = React.useState(false);
+      const [searchQ, setSearchQ] = React.useState("");
+      const [searchIdx, setSearchIdx] = React.useState(-1);
+      const [tocOpen, setTocOpen] = React.useState(false);
+      const [jump, setJump] = React.useState(null); // {i}：待滚动到的绝对消息索引
+      const searchInputRef = React.useRef(null);
       const inputRef = React.useRef(null);
       const draftRef = React.useRef("");
       draftRef.current = draft;
@@ -849,6 +951,10 @@ window.__ModuleLoader__.load({
         setPop(null);
         setMsgLimit(120);
         setQueued(null);
+        setSearchOpen(false);
+        setSearchQ("");
+        setSearchIdx(-1);
+        setTocOpen(false);
         return function () {
           if (activeKey) { draftStoreRef.current[activeKey] = draftRef.current; persistDrafts(); }
         };
@@ -868,6 +974,21 @@ window.__ModuleLoader__.load({
         }
         if (stickRef.current && el) el.scrollTop = el.scrollHeight;
       }, [snap, msgLimit]);
+
+      // 搜索/目录跳转：目标消息 DOM 提交后滚到视口中部（避免 auto-follow 拉回底部）
+      React.useLayoutEffect(function () {
+        if (!jump) return;
+        const el = msgsRef.current;
+        if (el) {
+          const target = el.querySelector('[data-ccw-i="' + jump.i + '"]');
+          if (target) {
+            const elRect = el.getBoundingClientRect();
+            const tRect = target.getBoundingClientRect();
+            el.scrollTop += (tRect.top - elRect.top) - el.clientHeight / 2 + tRect.height / 2;
+          }
+        }
+        setJump(null);
+      }, [jump]);
 
       // 回合结束后自动发送排队的消息（本地队列，无网络轮询）
       React.useEffect(function () {
@@ -889,6 +1010,24 @@ window.__ModuleLoader__.load({
         window.addEventListener("keydown", onKey);
         return function () { window.removeEventListener("keydown", onKey); };
       }, []);
+
+      // 会话内搜索快捷键：Ctrl/Cmd+F 打开搜索，Esc 关闭搜索/目录
+      React.useEffect(function () {
+        function onKey(e) {
+          if (!open) return;
+          if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "f" || e.key === "F")) {
+            e.preventDefault();
+            setSearchOpen(true);
+            setTocOpen(false);
+            setTimeout(function () { if (searchInputRef.current) searchInputRef.current.focus(); }, 0);
+          } else if (e.key === "Escape") {
+            setSearchOpen(false);
+            setTocOpen(false);
+          }
+        }
+        window.addEventListener("keydown", onKey);
+        return function () { window.removeEventListener("keydown", onKey); };
+      }, [open]);
 
       // ✎ 编辑重发：填入输入框（useCallback 保持稳定引用，供 MessageView memo 比较；
       //   必须声明在上面的提前 return 之前——早退后不得再调用任何 hook）
@@ -936,6 +1075,55 @@ window.__ModuleLoader__.load({
         const el = msgsRef.current;
         if (el) pagRef.current = { height: el.scrollHeight, top: el.scrollTop };
         setMsgLimit(function (l) { return l + 200; });
+      }
+
+      // ── 会话内搜索 + 轮次目录（纯本地，无网络请求）──
+      function jumpToMessage(i) {
+        if (i < 0 || !messages.length) return;
+        stickRef.current = false; // 跳离底部后不再 auto-follow
+        const start = Math.max(0, messages.length - msgLimit);
+        if (i < start) setMsgLimit(messages.length - i + 10); // 目标在视窗外 → 先扩窗
+        setJump({ i: i });
+      }
+      function searchStep(dir) {
+        if (!searchMatches.length) return;
+        let idx = searchIdx;
+        idx = idx < 0 ? (dir > 0 ? 0 : searchMatches.length - 1) : (idx + dir + searchMatches.length) % searchMatches.length;
+        setSearchIdx(idx);
+        jumpToMessage(searchMatches[idx]);
+      }
+      function onSearchChange(v) {
+        setSearchQ(v);
+        const q = String(v || "").trim().toLowerCase();
+        if (q) {
+          for (let i = 0; i < messages.length; i++) {
+            if (messageSearchText(messages[i]).toLowerCase().indexOf(q) !== -1) {
+              setSearchIdx(0);
+              jumpToMessage(i);
+              return;
+            }
+          }
+          setSearchIdx(-1);
+        } else {
+          setSearchIdx(-1);
+        }
+      }
+      function toggleSearch() {
+        const nv = !searchOpen;
+        setSearchOpen(nv);
+        setTocOpen(false);
+        if (!nv) { setSearchQ(""); setSearchIdx(-1); }
+        else setTimeout(function () { if (searchInputRef.current) searchInputRef.current.focus(); }, 0);
+      }
+      function toggleToc() {
+        const nv = !tocOpen;
+        setTocOpen(nv);
+        setSearchOpen(false);
+      }
+      function jumpToTurn(t) {
+        if (!t) return;
+        jumpToMessage(t.i);
+        setTocOpen(false);
       }
 
       function onSwitch(s) {
@@ -1193,6 +1381,25 @@ window.__ModuleLoader__.load({
       }
 
       const messages = active && active.messages ? active.messages : [];
+      // 轮次：每个 user 消息开启一轮（目录 + 流程分隔线共用）
+      const turns = [];
+      const turnByIndex = new Map();
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "user") {
+          const t = { i: i, n: turns.length + 1, ts: messages[i].ts, text: messages[i].text };
+          turns.push(t);
+          turnByIndex.set(i, t);
+        }
+      }
+      // 搜索命中：在全量消息上匹配（含尚未渲染进视窗的早期消息）
+      const sq = searchQ.trim().toLowerCase();
+      const searchMatches = [];
+      if (sq) {
+        for (let i = 0; i < messages.length; i++) {
+          if (messageSearchText(messages[i]).toLowerCase().indexOf(sq) !== -1) searchMatches.push(i);
+        }
+      }
+      const searchMatchSet = new Set(searchMatches);
       // 分页渲染：只渲染最近 N 条，避免长会话整列表全量挂载
       const startIdx = Math.max(0, messages.length - msgLimit);
       const visible = startIdx > 0 ? messages.slice(startIdx) : messages;
@@ -1256,6 +1463,8 @@ window.__ModuleLoader__.load({
           active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
           resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时与费用" }, "· " + resultMeta) : null,
           React.createElement("div", { style: { flex: 1 } }),
+          React.createElement("button", { className: "ccw-btn small", style: searchOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "会话内搜索（Ctrl/Cmd+F）", onClick: toggleSearch }, "🔍"),
+          React.createElement("button", { className: "ccw-btn small", style: tocOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "轮次目录（跳到某轮）", onClick: toggleToc }, "📑"),
           React.createElement("select", {
             className: "ccw-btn small",
             value: modelId,
@@ -1269,6 +1478,24 @@ window.__ModuleLoader__.load({
           React.createElement("button", { className: "ccw-btn small", onClick: function () { refetchCatalog(); toast("已刷新指令与模型列表", "ok"); }, title: "刷新指令与模型列表（在 ~/.claude 新增指令后无需重开面板）" }, "⟳"),
           React.createElement("button", { className: "ccw-btn small", onClick: openUpdate, title: "检查并更新本机 Claude Code" }, "🔄 检查更新"),
         ),
+        searchOpen ? React.createElement("div", { className: "ccw-searchbar" },
+          React.createElement("input", {
+            ref: searchInputRef,
+            className: "ccw-search-input",
+            placeholder: "搜索会话内容…（Enter 下一个 / Shift+Enter 上一个 / Esc 关闭）",
+            value: searchQ,
+            onChange: function (e) { onSearchChange(e.target.value); },
+            onKeyDown: function (e) {
+              if (e.key === "Escape") { setSearchOpen(false); setTocOpen(false); return; }
+              if (e.key === "Enter") { e.preventDefault(); searchStep(e.shiftKey ? -1 : 1); }
+            },
+          }),
+          sq ? React.createElement("span", { className: "ccw-search-count" },
+            searchMatches.length ? (searchIdx + 1) + " / " + searchMatches.length : "无匹配") : null,
+          React.createElement("button", { className: "ccw-btn small", title: "上一个（Shift+Enter）", disabled: !searchMatches.length, onClick: function () { searchStep(-1); } }, "↑"),
+          React.createElement("button", { className: "ccw-btn small", title: "下一个（Enter）", disabled: !searchMatches.length, onClick: function () { searchStep(1); } }, "↓"),
+          React.createElement("button", { className: "ccw-btn small", title: "关闭搜索", onClick: function () { setSearchOpen(false); setSearchQ(""); setSearchIdx(-1); } }, "✕"),
+        ) : null,
         React.createElement("div", { className: "ccw-body" },
           React.createElement(Sidebar, {
             snap: snap, collapsed: collapsed, toggleWs: toggleWs,
@@ -1301,10 +1528,36 @@ window.__ModuleLoader__.load({
               visible.map(function (m, vi) {
                 const i = startIdx + vi;
                 const live = running && i === messages.length - 1;
-                return React.createElement(MessageView, { key: m.id != null ? m.id : "i" + i, msg: m, live: live, onFill: fillInput });
+                const turn = turnByIndex.get(i);
+                const isHit = searchIdx >= 0 && searchMatches[searchIdx] === i;
+                const query = searchMatchSet.has(i) ? sq : "";
+                const row = [];
+                if (turn && turn.n > 1) {
+                  row.push(React.createElement("div", { key: "turn" + i, className: "ccw-turn" }, "第 " + turn.n + " 轮" + (turn.ts ? " · " + formatClock(turn.ts) : "")));
+                }
+                row.push(React.createElement(MessageView, { key: m.id != null ? m.id : "i" + i, msg: m, live: live, onFill: fillInput, hl: isHit, dataIndex: i, query: query }));
+                return React.createElement(React.Fragment, { key: "f" + i }, row);
               }),
               active && active.status === "starting" ? React.createElement("div", { className: "ccw-msg assistant" }, "…") : null,
             ),
+            tocOpen ? React.createElement("div", { className: "ccw-toc" },
+              React.createElement("div", { className: "ccw-toc-head" },
+                "📑 轮次目录",
+                React.createElement("span", { className: "ccw-search-count" }, "共 " + turns.length + " 轮"),
+                React.createElement("div", { style: { flex: 1 } }),
+                React.createElement("button", { className: "ccw-icbtn", title: "关闭", onClick: function () { setTocOpen(false); } }, "✕"),
+              ),
+              React.createElement("div", { className: "ccw-toc-list" },
+                turns.length === 0 ? React.createElement("div", { className: "ccw-dim", style: { padding: "8px" } }, "暂无对话轮次") : null,
+                turns.map(function (t) {
+                  return React.createElement("div", { key: t.n, className: "ccw-toc-item", title: "跳到第 " + t.n + " 轮", onClick: function () { jumpToTurn(t); } },
+                    React.createElement("span", { className: "ccw-toc-n" }, "第" + t.n + "轮"),
+                    t.ts ? React.createElement("span", { className: "ccw-toc-time" }, formatClock(t.ts)) : null,
+                    React.createElement("span", { className: "ccw-toc-txt" }, turnSnippet(t.text) || "（图片/空消息）"),
+                  );
+                }),
+              ),
+            ) : null,
           ),
         ),
         React.createElement("div", { className: "ccw-footer" },
