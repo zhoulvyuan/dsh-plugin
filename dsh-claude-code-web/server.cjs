@@ -964,10 +964,21 @@ function loadHistoryMessages(sessionId) {
       }
     } else if (o.type === 'assistant' && o.message) {
       const m = o.message
+      const key = m.id || ('m' + counter)
+      // Claude Code（扩展思考）会把同一条 assistant 消息按 apiBlockIndex 拆成多行：
+      //   0=thinking、1=text、2=tool_use …… message.id 相同。
+      // 这里按 id 合并到同一条消息，避免把一份报告拆成「思考气泡 + 正文气泡」两个气泡。
+      let am = null
+      const last = msgs.length > 0 ? msgs[msgs.length - 1] : null
+      if (last && last.role === 'assistant' && last.messageKey === key) am = last
       let textBuf = '', thinkingBuf = ''
       const flush = function () {
         if (textBuf || thinkingBuf) {
-          msgs.push({ id: counter++, role: 'assistant', messageKey: m.id || ('m' + counter), model: m.model || '', text: textBuf, thinking: thinkingBuf })
+          if (am) { am.text += textBuf; am.thinking += thinkingBuf; }
+          else {
+            am = { id: counter++, role: 'assistant', messageKey: key, model: m.model || '', text: textBuf, thinking: thinkingBuf }
+            msgs.push(am)
+          }
           textBuf = ''; thinkingBuf = ''
         }
       }
@@ -976,6 +987,7 @@ function loadHistoryMessages(sessionId) {
         else if (b.type === 'thinking') thinkingBuf += b.thinking || ''
         else if (b.type === 'tool_use') {
           flush()
+          am = null
           msgs.push({ id: counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'done' })
         }
       }
