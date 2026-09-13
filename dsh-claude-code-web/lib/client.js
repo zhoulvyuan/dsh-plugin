@@ -796,6 +796,7 @@ window.__ModuleLoader__.load({
       const histRef = React.useRef({ list: [], idx: -1 });
       const draftStoreRef = React.useRef({}); // 会话 key -> 草稿
       const pagRef = React.useRef(null);      // “加载更早”前记录滚动位置，避免跳动
+      const minAnchorRef = React.useRef(null); // 最小化前记录视口锚点 {i, offset}，恢复时还原
 
       // 活跃会话与运行状态
       const active = snap && snap.active;
@@ -975,6 +976,27 @@ window.__ModuleLoader__.load({
         if (stickRef.current && el) el.scrollTop = el.scrollHeight;
       }, [snap, msgLimit]);
 
+      // 从最小化恢复：消息容器被卸载后重新挂载、滚动位置归零，按最小化前记录的锚点还原
+      // （open 未变、WS 未重连，故上面的 auto-follow effect 不会触发；这里补上）
+      React.useLayoutEffect(function () {
+        if (minimized) return;
+        const el = msgsRef.current;
+        const anchor = minAnchorRef.current;
+        minAnchorRef.current = null;
+        if (!el || !anchor) return;
+        const target = el.querySelector('[data-ccw-i="' + anchor.i + '"]');
+        if (target) {
+          const elRect = el.getBoundingClientRect();
+          const tRect = target.getBoundingClientRect();
+          el.scrollTop += (tRect.top - elRect.top) - anchor.offset;
+        } else {
+          // 锚点消息已不在渲染窗口（期间消息大量增长）→ 回到底部兜底
+          el.scrollTop = el.scrollHeight;
+        }
+        // 按还原后的位置重算“跟随底部”标记
+        stickRef.current = (el.scrollHeight - el.scrollTop - el.clientHeight) < 40;
+      }, [minimized]);
+
       // 搜索/目录跳转：目标消息 DOM 提交后滚到视口中部（避免 auto-follow 拉回底部）
       React.useLayoutEffect(function () {
         if (!jump) return;
@@ -1075,6 +1097,20 @@ window.__ModuleLoader__.load({
         const el = msgsRef.current;
         if (el) pagRef.current = { height: el.scrollHeight, top: el.scrollTop };
         setMsgLimit(function (l) { return l + 200; });
+      }
+
+      // 最小化前记录视口锚点：取视口顶部第一条可见消息 + 其顶部相对容器顶的偏移
+      function captureMinAnchor() {
+        const el = msgsRef.current;
+        if (!el) { minAnchorRef.current = null; return; }
+        const topY = el.getBoundingClientRect().top;
+        const items = el.querySelectorAll("[data-ccw-i]");
+        let anchor = null;
+        for (let k = 0; k < items.length; k++) {
+          const r = items[k].getBoundingClientRect();
+          if (r.bottom > topY + 1) { anchor = { i: items[k].getAttribute("data-ccw-i"), offset: r.top - topY }; break; }
+        }
+        minAnchorRef.current = anchor;
       }
 
       // ── 会话内搜索 + 轮次目录（纯本地，无网络请求）──
@@ -1452,6 +1488,7 @@ window.__ModuleLoader__.load({
           React.createElement("div", { style: { flex: 1 } }),
           React.createElement("button", { className: "ccw-max", title: "最小化到角落", onClick: function () {
             if (dialog) { dialog.resolve(null); setDialog(null); }
+            captureMinAnchor();
             setMinimized(true);
           } }, "—"),
           React.createElement("button", { className: "ccw-max", title: maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, maximized ? "还原" : "最大化"),
