@@ -447,10 +447,21 @@ function handleMessage(r, msg) {
   }
   if (type === 'result') {
     r.status = msg.is_error ? 'error' : 'done'
+    // 累计本会话 token 用量：modelUsage 为跨轮次累计，覆盖主循环 + Task 子代理 + sidechain + 压缩等全部调用，是 token 统计的正确字段
+    let totalTokens = null
+    if (msg.modelUsage && typeof msg.modelUsage === 'object') {
+      let t = 0
+      for (const k in msg.modelUsage) {
+        const mu = msg.modelUsage[k] || {}
+        t += (mu.inputTokens || 0) + (mu.outputTokens || 0) + (mu.cacheReadInputTokens || 0) + (mu.cacheCreationInputTokens || 0)
+      }
+      totalTokens = t
+    }
     r.lastResult = {
       isError: !!msg.is_error,
       durationMs: msg.duration_ms != null ? msg.duration_ms : null,
       costUsd: msg.total_cost_usd != null ? msg.total_cost_usd : null,
+      tokens: totalTokens,
     }
     if (msg.session_id) r.sessionId = msg.session_id
     if (msg.is_error) {

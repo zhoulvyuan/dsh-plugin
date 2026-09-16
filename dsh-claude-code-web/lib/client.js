@@ -703,6 +703,17 @@ window.__ModuleLoader__.load({
       const h = Math.floor(m / 60);
       return h + "h " + (m % 60) + "m";
     }
+    // token 量（统一以 M 为单位）：>=0.01M 保留 2 位小数；更小的量用 2 位有效数字，避免显示成 0.00M
+    function formatTokens(n) {
+      if (n == null || !isFinite(n) || n < 0) return null;
+      const m = n / 1000000;
+      if (m < 0.01) return m > 0 ? m.toPrecision(2) + "M" : "0M";
+      return m.toFixed(2) + "M";
+    }
+    function formatTokensFull(n) {
+      if (n == null || !isFinite(n) || n < 0) return "";
+      return n.toLocaleString("en-US") + " tokens";
+    }
     function formatClock(ms) {
       const dt = new Date(ms);
       const pad = function (n) { return (n < 10 ? "0" : "") + n; };
@@ -1462,6 +1473,12 @@ window.__ModuleLoader__.load({
         if (parts.length) resultMeta = parts.join(" · ");
       }
 
+      // 当前会话累计 token 用量（以 M 为单位，数据来自 lastResult.tokens，纯渲染）
+      let tokenMeta = null;
+      if (active && active.lastResult && active.lastResult.tokens != null) {
+        tokenMeta = formatTokens(active.lastResult.tokens);
+      }
+
       const panelStyle = maximized
         ? { left: 8, top: 8, width: "calc(100vw - 16px)", height: "calc(100vh - 16px)" }
         : { left: geom.left, top: geom.top, width: geom.width, height: geom.height };
@@ -1499,6 +1516,7 @@ window.__ModuleLoader__.load({
           React.createElement("span", { className: "ccw-dim" }, active ? (active.title || "会话") : "暂无活跃会话"),
           active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
           resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时与费用" }, "· " + resultMeta) : null,
+          tokenMeta != null ? React.createElement("span", { className: "ccw-dim", title: "当前会话累计 token：" + formatTokensFull(active.lastResult.tokens) }, "· " + tokenMeta + " tokens") : null,
           React.createElement("div", { style: { flex: 1 } }),
           React.createElement("button", { className: "ccw-btn small", style: searchOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "会话内搜索（Ctrl/Cmd+F）", onClick: toggleSearch }, "🔍"),
           React.createElement("button", { className: "ccw-btn small", style: tocOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "轮次目录（跳到某轮）", onClick: toggleToc }, "📑"),
