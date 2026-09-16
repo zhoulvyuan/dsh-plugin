@@ -1463,20 +1463,24 @@ window.__ModuleLoader__.load({
         });
       }
 
-      // 成功回合的耗时 / 费用（数据来自 WS 已推送的 lastResult，纯渲染）
+      // 本回合耗时 + 当前会话累计费用（费用取 sessionCostUsd，跨 query 生命周期累计；缺失时回退本 query 值）
       let resultMeta = null;
-      if (active && (active.status === "done" || active.status === "error") && active.lastResult) {
-        const dur = active.lastResult.durationMs != null ? active.lastResult.durationMs : active.durationMs;
+      if (active && active.lastResult) {
+        const lr = active.lastResult;
+        const dur = lr.durationMs != null ? lr.durationMs : active.durationMs;
         const parts = [];
         if (dur != null) parts.push(formatDuration(dur));
-        if (active.lastResult.costUsd != null) parts.push("$" + (Math.round(active.lastResult.costUsd * 1000) / 1000));
+        const sessionCost = lr.sessionCostUsd != null ? lr.sessionCostUsd : lr.costUsd;
+        if (sessionCost != null) parts.push("会话 $" + (Math.round(sessionCost * 1000) / 1000));
         if (parts.length) resultMeta = parts.join(" · ");
       }
 
-      // 当前会话累计 token 用量（以 M 为单位，数据来自 lastResult.tokens，纯渲染）
+      // 当前会话累计 token 用量（以 M 为单位，跨 query 生命周期累计）
       let tokenMeta = null;
-      if (active && active.lastResult && active.lastResult.tokens != null) {
-        tokenMeta = formatTokens(active.lastResult.tokens);
+      let tokenMetaFull = "";
+      if (active && active.lastResult) {
+        const st = active.lastResult.sessionTokens != null ? active.lastResult.sessionTokens : active.lastResult.tokens;
+        if (st != null) { tokenMeta = formatTokens(st); tokenMetaFull = formatTokensFull(st); }
       }
 
       const panelStyle = maximized
@@ -1515,8 +1519,8 @@ window.__ModuleLoader__.load({
         React.createElement("div", { className: "ccw-topbar" },
           React.createElement("span", { className: "ccw-dim" }, active ? (active.title || "会话") : "暂无活跃会话"),
           active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
-          resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时与费用" }, "· " + resultMeta) : null,
-          tokenMeta != null ? React.createElement("span", { className: "ccw-dim", title: "当前会话累计 token：" + formatTokensFull(active.lastResult.tokens) }, "· " + tokenMeta + " tokens") : null,
+          resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时 · 当前会话累计费用" }, "· " + resultMeta) : null,
+          tokenMeta != null ? React.createElement("span", { className: "ccw-dim", title: "当前会话累计 token：" + tokenMetaFull }, "· 会话 " + tokenMeta + " tokens") : null,
           React.createElement("div", { style: { flex: 1 } }),
           React.createElement("button", { className: "ccw-btn small", style: searchOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "会话内搜索（Ctrl/Cmd+F）", onClick: toggleSearch }, "🔍"),
           React.createElement("button", { className: "ccw-btn small", style: tocOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "轮次目录（跳到某轮）", onClick: toggleToc }, "📑"),

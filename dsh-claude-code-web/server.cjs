@@ -185,6 +185,11 @@ function newRecord(permissionMode, cwd) {
     query: null,
     inputQueue: null,
     lastResult: null,
+    // 会话累计用量：sessionXxx 为已完成 query 生命周期的累计，queryXxx 为当前 query 生命周期的最新累计值
+    sessionCostUsd: 0,
+    sessionTokens: 0,
+    queryCostUsd: 0,
+    queryTokens: 0,
     sessionRules: [],
     startedAt: null,
     durationMs: null,
@@ -447,21 +452,28 @@ function handleMessage(r, msg) {
   }
   if (type === 'result') {
     r.status = msg.is_error ? 'error' : 'done'
-    // 累计本会话 token 用量：modelUsage 为跨轮次累计，覆盖主循环 + Task 子代理 + sidechain + 压缩等全部调用，是 token 统计的正确字段
-    let totalTokens = null
+    // 本 query 生命周期内的累计 token（modelUsage 跨轮次累计，覆盖主循环 + Task 子代理 + sidechain + 压缩等全部调用）
+    let queryTokens = null
     if (msg.modelUsage && typeof msg.modelUsage === 'object') {
       let t = 0
       for (const k in msg.modelUsage) {
         const mu = msg.modelUsage[k] || {}
         t += (mu.inputTokens || 0) + (mu.outputTokens || 0) + (mu.cacheReadInputTokens || 0) + (mu.cacheCreationInputTokens || 0)
       }
-      totalTokens = t
+      queryTokens = t
     }
+    const queryCost = msg.total_cost_usd != null ? msg.total_cost_usd : null
+    if (queryCost != null) r.queryCostUsd = queryCost
+    if (queryTokens != null) r.queryTokens = queryTokens
     r.lastResult = {
       isError: !!msg.is_error,
       durationMs: msg.duration_ms != null ? msg.duration_ms : null,
-      costUsd: msg.total_cost_usd != null ? msg.total_cost_usd : null,
-      tokens: totalTokens,
+      // 本 query 生命周期累计（向后兼容）
+      costUsd: queryCost,
+      tokens: queryTokens,
+      // 当前会话累计（跨 query 生命周期：切换模型/权限重建 query 时不清零）
+      sessionCostUsd: (r.sessionCostUsd || 0) + (r.queryCostUsd || 0),
+      sessionTokens: (r.sessionTokens || 0) + (r.queryTokens || 0),
     }
     if (msg.session_id) r.sessionId = msg.session_id
     if (msg.is_error) {
@@ -583,6 +595,12 @@ function makeCanUseTool(r) {
 
 function ensureQuery(r) {
   if (r.query) return { ok: true }
+  // 新建 query 前，把上一个 query 生命周期的最新累计值并入会话累计
+  // （SDK 的 total_cost_usd / modelUsage 仅在同一 query 生命周期内累计，切换模型/权限会重建 query）
+  r.sessionCostUsd = (r.sessionCostUsd || 0) + (r.queryCostUsd || 0)
+  r.sessionTokens = (r.sessionTokens || 0) + (r.queryTokens || 0)
+  r.queryCostUsd = 0
+  r.queryTokens = 0
   try {
     r.inputQueue = AsyncQueue()
     const opts = {
@@ -738,6 +756,10 @@ function clearSession() {
   r._byKey = {}
   r.status = 'idle'
   r.lastResult = null
+  r.sessionCostUsd = 0
+  r.sessionTokens = 0
+  r.queryCostUsd = 0
+  r.queryTokens = 0
   r.startedAt = null
   r.durationMs = null
   r.error = null
