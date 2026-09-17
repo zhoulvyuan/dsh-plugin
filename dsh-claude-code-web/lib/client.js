@@ -105,6 +105,7 @@ window.__ModuleLoader__.load({
 .ccw-code-copy:hover { opacity:1; }
 .ccw-msgtime-in { font-size:10px; opacity:.55; margin-top:3px; text-align:right; }
 .ccw-tool-out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:220px; overflow-y:auto; margin-top:4px; }
+.ccw-tool-fold { font-size:11px; opacity:.6; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; max-width:100%; }
 .ccw-toasts { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:1200; pointer-events:none; }
 .ccw-toast { background:rgba(20,20,24,.92); color:#fff; font-size:12px; padding:7px 14px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:76%; }
 .ccw-toast.err { background:rgba(220,38,38,.95); }
@@ -594,13 +595,18 @@ window.__ModuleLoader__.load({
         const hasResult = msg.result != null && String(msg.result).length > 0;
         const r = hasResult ? String(msg.result) : "";
         const shown = r.length > 20000 ? r.slice(0, 20000) + "\n…（过长已截断）" : r;
+        const sizeHint = hasResult ? formatChars(r.length) : "";
+        const snippet = hasResult ? r.replace(/\s+/g, " ").trim() : "";
+        const foldHint = snippet.length > 80 ? snippet.slice(0, 80) + "…" : snippet;
         return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
           "🛠 ", highlightNodes(msg.name || "工具", query), (msg.status === "running" ? "（运行中…）" : " ✓"),
           hasResult ? React.createElement("button", {
             type: "button", className: "ccw-think-toggle", style: { marginLeft: 6, marginBottom: 0 },
             onClick: function () { setToolOpen(function (v) { return !v; }); },
-          }, toolOpen ? "▾ 收起输出" : "▸ 查看输出") : null,
+            title: toolOpen ? "收起输出" : "查看完整输出",
+          }, toolOpen ? "▾ 收起输出" : "▸ 查看输出（" + sizeHint + "）") : null,
           hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-out" }, highlightNodes(shown, query)) : null,
+          hasResult && !toolOpen ? React.createElement("div", { className: "ccw-tool-fold", title: "输出已折叠（" + sizeHint + "），点击上方「查看输出」展开" }, "已折叠 " + sizeHint + "：" + foldHint) : null,
         );
       }
       if (msg.role === "result") {
@@ -713,6 +719,13 @@ window.__ModuleLoader__.load({
     function formatTokensFull(n) {
       if (n == null || !isFinite(n) || n < 0) return "";
       return n.toLocaleString("en-US") + " tokens";
+    }
+    // 字符量：工具输出折叠提示用（<1000 原样，<10000 用 K，否则用 万）
+    function formatChars(n) {
+      if (n == null || !isFinite(n) || n < 0) return "";
+      if (n < 1000) return n + " 字符";
+      if (n < 10000) return (n / 1000).toFixed(1) + "K 字符";
+      return (n / 10000).toFixed(1) + " 万字符";
     }
     function formatClock(ms) {
       const dt = new Date(ms);
