@@ -100,6 +100,13 @@ window.__ModuleLoader__.load({
 .ccw-md .ccw-a:hover { text-decoration:underline; }
 .ccw-md strong { font-weight:600; }
 .ccw-md em { font-style:italic; }
+.ccw-md .ccw-mermaid { margin:8px 0; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:8px; padding:8px 10px; background:var(--dsw-alias-bg-base,#fff); overflow-x:auto; }
+.ccw-md .ccw-mermaid-status { font-size:12px; color:var(--dsw-alias-label-secondary,#9ca3af); padding:2px 0; }
+.ccw-md .ccw-mermaid-svg { text-align:center; }
+.ccw-md .ccw-mermaid-svg svg { max-width:100%; height:auto; display:inline-block; }
+.ccw-md .ccw-mermaid-bar { display:flex; justify-content:flex-end; gap:6px; margin-top:4px; }
+.ccw-md .ccw-mermaid-err { font-size:12px; color:var(--dsw-alias-state-error-primary,#dc2626); margin-bottom:4px; white-space:pre-wrap; }
+.ccw-md .ccw-mermaid .ccw-mermaid-src { margin:4px 0 0; }
 .ccw-pre-wrap { position:relative; }
 .ccw-code-copy { position:absolute; top:6px; right:6px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border-radius:4px; font-size:10px; padding:2px 6px; cursor:pointer; opacity:.55; }
 .ccw-code-copy:hover { opacity:1; }
@@ -342,6 +349,19 @@ window.__ModuleLoader__.load({
       h.push("</table></div>");
       return h.join("");
     }
+    // 代码围栏收尾：mermaid 单独渲染为图表容器，其余语言渲染为可复制代码块
+    function flushCodeFence(out, lang, buf, pending) {
+      const body = buf.join("\n");
+      if (lang === "mermaid") {
+        out.push(
+          '<div class="ccw-mermaid"' + (pending ? ' data-pending="1"' : "") +
+          ' data-src="' + encodeURIComponent(body) + '">' +
+          '<pre class="ccw-pre ccw-mermaid-src"><code>' + escapeHtml(body) + "</code></pre></div>"
+        );
+        return;
+      }
+      out.push('<div class="ccw-pre-wrap"><button type="button" class="ccw-code-copy" data-ccw-copy>复制</button><pre class="ccw-pre"' + (lang ? ' data-lang="' + escapeHtml(lang) + '"' : "") + '><code>' + escapeHtml(body) + "</code></pre></div>");
+    }
     function renderMarkdown(text) {
       const src = String(text == null ? "" : text);
       const lines = src.split("\n");
@@ -355,12 +375,12 @@ window.__ModuleLoader__.load({
         const fence = /^```([A-Za-z0-9_+-]*)\s*$/.exec(line);
         if (fence) {
           if (codeBuf !== null) {
-            out.push('<div class="ccw-pre-wrap"><button type="button" class="ccw-code-copy" data-ccw-copy>复制</button><pre class="ccw-pre"' + (codeLang ? ' data-lang="' + escapeHtml(codeLang) + '"' : "") + '><code>' + codeBuf.join("\n") + "</code></pre></div>");
+            flushCodeFence(out, codeLang.toLowerCase(), codeBuf, false);
             codeBuf = null; codeLang = "";
           } else { codeBuf = []; codeLang = fence[1] || ""; closeList(); }
           continue;
         }
-        if (codeBuf !== null) { codeBuf.push(escapeHtml(line)); continue; }
+        if (codeBuf !== null) { codeBuf.push(line); continue; }
 
         const esc = escapeHtml(line);
         const h = /^(#{1,6})\s+(.*)$/.exec(esc);
@@ -394,9 +414,187 @@ window.__ModuleLoader__.load({
         closeList();
         out.push('<div class="ccw-p">' + inlineMd(esc) + "</div>");
       }
-      if (codeBuf !== null) out.push('<div class="ccw-pre-wrap"><button type="button" class="ccw-code-copy" data-ccw-copy>复制</button><pre class="ccw-pre"><code>' + codeBuf.join("\n") + "</code></pre></div>");
+      if (codeBuf !== null) flushCodeFence(out, codeLang.toLowerCase(), codeBuf, true);
       closeList();
       return out.join("\n");
+    }
+
+    // ------------------------------------------------------------------
+    // Mermaid 图表渲染
+    //   - 本地 mermaid.min.js（宿主半部 public/ 静态目录，随插件分发，离线可用）
+    //   - 首次遇到 ```mermaid 代码块时才注入 <script>，加载成功后全局 window.mermaid
+    //   - 渲染结果按「主题 + 源码」缓存，流式重渲染时不重复计算
+    // ------------------------------------------------------------------
+    const MERMAID_SRC = API.replace(/\/api\/?$/, "") + "/mermaid.min.js";
+    let mermaidLibPromise = null;
+    const mermaidSvgCache = new Map();
+    let mermaidSeed = 0;
+
+    // 主题判定：类名 / data 属性 → body 背景亮度 → 系统偏好
+    function detectDark(el) {
+      try {
+        if (typeof document !== "undefined") {
+          const de = document.documentElement;
+          const b = document.body;
+          const attr = (de && (de.getAttribute("data-dsw-theme") || de.getAttribute("data-theme"))) ||
+                       (b && (b.getAttribute("data-dsw-theme") || b.getAttribute("data-theme"))) || "";
+          if (/dark/i.test(attr)) return true;
+          if (/light/i.test(attr)) return false;
+          if ((de && de.classList.contains("dark")) || (b && b.classList.contains("dark"))) return true;
+          if ((de && de.classList.contains("light")) || (b && b.classList.contains("light"))) return false;
+        }
+        const node = (el && el.ownerDocument && el.ownerDocument.body) || (typeof document !== "undefined" ? document.body : null);
+        if (node && typeof getComputedStyle === "function") {
+          const bg = getComputedStyle(node).backgroundColor || "";
+          const m = /rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(bg);
+          if (m) {
+            const lum = 0.299 * parseFloat(m[1]) + 0.587 * parseFloat(m[2]) + 0.114 * parseFloat(m[3]);
+            if (isFinite(lum) && lum > 0) return lum < 128;
+          }
+        }
+        if (typeof window !== "undefined" && window.matchMedia) return window.matchMedia("(prefers-color-scheme: dark)").matches;
+      } catch (e) {}
+      return false;
+    }
+
+    function loadMermaid() {
+      if (typeof document === "undefined") return Promise.reject(new Error("当前环境不支持 Mermaid 渲染"));
+      if (typeof window !== "undefined" && window.mermaid && typeof window.mermaid.render === "function") {
+        return Promise.resolve(window.mermaid);
+      }
+      if (mermaidLibPromise) return mermaidLibPromise;
+      mermaidLibPromise = new Promise(function (resolve, reject) {
+        const done = function () {
+          if (window.mermaid && typeof window.mermaid.render === "function") resolve(window.mermaid);
+          else { mermaidLibPromise = null; reject(new Error("mermaid.min.js 已加载但未暴露 render 接口")); }
+        };
+        const fail = function () {
+          mermaidLibPromise = null;
+          // 移除加载失败的 <script>，使后续「重试」能重新发起加载
+          try {
+            const bad = document.querySelector("script[data-ccw-mermaid]");
+            if (bad && bad.parentNode) bad.parentNode.removeChild(bad);
+          } catch (e) {}
+          reject(new Error("无法加载 " + MERMAID_SRC));
+        };
+        const prev = document.querySelector("script[data-ccw-mermaid]");
+        if (prev) {
+          if (prev.getAttribute("data-ccw-loaded") === "1") { done(); return; }
+          prev.addEventListener("load", function () { prev.setAttribute("data-ccw-loaded", "1"); done(); });
+          prev.addEventListener("error", fail);
+          return;
+        }
+        const s = document.createElement("script");
+        s.setAttribute("data-ccw-mermaid", "1");
+        s.async = true;
+        s.src = MERMAID_SRC;
+        s.addEventListener("load", function () { s.setAttribute("data-ccw-loaded", "1"); done(); });
+        s.addEventListener("error", fail);
+        document.head.appendChild(s);
+      });
+      return mermaidLibPromise;
+    }
+
+    // 渲染成功后：SVG + 「查看源码」工具栏
+    function paintMermaidSvg(el, svg, src) {
+      el.setAttribute("data-ccw-mstate", "done");
+      el.classList.add("ccw-mermaid-done");
+      el.textContent = "";
+      const box = document.createElement("div");
+      box.className = "ccw-mermaid-svg";
+      box.innerHTML = svg;
+      el.appendChild(box);
+
+      const pre = document.createElement("pre");
+      pre.className = "ccw-pre ccw-mermaid-src";
+      pre.style.display = "none";
+      const code = document.createElement("code");
+      code.textContent = src;
+      pre.appendChild(code);
+
+      const bar = document.createElement("div");
+      bar.className = "ccw-mermaid-bar";
+      const t = document.createElement("button");
+      t.type = "button";
+      t.className = "ccw-think-toggle";
+      t.style.marginBottom = "0";
+      t.textContent = "查看源码";
+      t.addEventListener("click", function () {
+        const open = pre.style.display !== "none";
+        pre.style.display = open ? "none" : "block";
+        t.textContent = open ? "查看源码" : "收起源码";
+      });
+      bar.appendChild(t);
+      el.appendChild(bar);
+      el.appendChild(pre);
+    }
+
+    // 渲染失败：错误信息 + 源码 + 重试
+    function paintMermaidError(el, src, err) {
+      el.setAttribute("data-ccw-mstate", "error");
+      el.classList.add("ccw-mermaid-error");
+      el.textContent = "";
+      const msg = document.createElement("div");
+      msg.className = "ccw-mermaid-err";
+      msg.textContent = "⚠ Mermaid 渲染失败：" + (err && err.message ? err.message : String(err));
+      el.appendChild(msg);
+
+      const pre = document.createElement("pre");
+      pre.className = "ccw-pre ccw-mermaid-src";
+      const code = document.createElement("code");
+      code.textContent = src;
+      pre.appendChild(code);
+      el.appendChild(pre);
+
+      const bar = document.createElement("div");
+      bar.className = "ccw-mermaid-bar";
+      const r = document.createElement("button");
+      r.type = "button";
+      r.className = "ccw-think-toggle";
+      r.style.marginBottom = "0";
+      r.textContent = "重试";
+      r.addEventListener("click", function () {
+        el.removeAttribute("data-ccw-mstate");
+        el.classList.remove("ccw-mermaid-error");
+        renderMermaidBlock(el);
+      });
+      bar.appendChild(r);
+      el.appendChild(bar);
+    }
+
+    // 渲染一个 .ccw-mermaid 占位容器（幂等：已渲染/正在流式接收的跳过）
+    function renderMermaidBlock(el) {
+      if (!el || !el.getAttribute) return;
+      if (el.getAttribute("data-ccw-mstate")) return;         // 已处理
+      if (el.getAttribute("data-pending") === "1") return;     // 围栏尚未闭合，等下一帧
+      let src = el.getAttribute("data-src") || "";
+      try { src = decodeURIComponent(src); } catch (e) {}
+      if (!src.trim()) { el.setAttribute("data-ccw-mstate", "empty"); return; }
+
+      const theme = detectDark(el) ? "dark" : "default";
+      const cacheKey = theme + "\u0000" + src;
+      const cached = mermaidSvgCache.get(cacheKey);
+      if (cached) { paintMermaidSvg(el, cached, src); return; }
+
+      el.setAttribute("data-ccw-mstate", "loading");
+      el.textContent = "";
+      const status = document.createElement("div");
+      status.className = "ccw-mermaid-status";
+      status.textContent = "正在渲染 Mermaid 图表…";
+      el.appendChild(status);
+
+      loadMermaid().then(function (mm) {
+        try { mm.initialize({ startOnLoad: false, securityLevel: "strict", theme: theme }); } catch (e) {}
+        return mm.render("ccw-mm-" + Date.now().toString(36) + "-" + (++mermaidSeed), src);
+      }).then(function (res) {
+        const svg = res && res.svg ? String(res.svg) : "";
+        if (!svg) throw new Error("渲染结果为空");
+        if (mermaidSvgCache.size > 60) mermaidSvgCache.clear();
+        mermaidSvgCache.set(cacheKey, svg);
+        paintMermaidSvg(el, svg, src);
+      }).catch(function (err) {
+        paintMermaidError(el, src, err);
+      });
     }
 
     // ------------------------------------------------------------------
@@ -543,6 +741,14 @@ window.__ModuleLoader__.load({
       const mdHtml = React.useMemo(function () { return renderMarkdown(msg.text); }, [msg.text]);
       // 命中词在渲染后的 HTML 内做内联高亮（标签/实体不触碰）
       const mdHighlighted = React.useMemo(function () { return query ? highlightHtml(mdHtml, query) : mdHtml; }, [mdHtml, query]);
+      // Mermaid 图表：HTML 注入 DOM 后按需渲染（懒加载 mermaid.min.js，已渲染的跳过）
+      const mdRef = React.useRef(null);
+      React.useEffect(function () {
+        const root = mdRef.current;
+        if (!root) return;
+        const nodes = root.querySelectorAll(".ccw-mermaid[data-src]");
+        for (let i = 0; i < nodes.length; i++) renderMermaidBlock(nodes[i]);
+      }, [mdHighlighted]);
       const ts = msg.ts ? formatClock(msg.ts) : "";
       if (msg.role === "user") {
         return React.createElement("div", { className: "ccw-msg user" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
@@ -572,6 +778,7 @@ window.__ModuleLoader__.load({
           hasThinking && thinkingOpen ? React.createElement("div", { className: "ccw-thinking" }, highlightNodes(msg.thinking, query)) : null,
           React.createElement("div", {
             className: "ccw-md",
+            ref: mdRef,
             dangerouslySetInnerHTML: { __html: mdHighlighted },
             onClick: function (e) {
               // 代码块复制按钮（dangerouslySetInnerHTML 内的元素无法绑 React 事件，用事件委托）

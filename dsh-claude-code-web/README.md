@@ -12,6 +12,7 @@
 - Tool 调用状态展示
 - Thinking 内容展示
 - Markdown、代码块等内容渲染
+- Mermaid 文本绘图渲染（```mermaid 代码块自动渲染为图表，离线可用）
 - WebSocket 实时通信
 - 工作台拖动、缩放和最大化
 
@@ -99,6 +100,8 @@ dsh-claude-code-web/
 ├── package.json
 ├── cordis.patch.yml
 ├── server.cjs
+├── public/
+│   └── mermaid.min.js   # 随插件分发的 Mermaid 运行时（按需加载，离线可用）
 └── lib/
     ├── index.js
     └── client.js

@@ -29,6 +29,7 @@
     "lib/index.js",
     "lib/client.js",
     "server.cjs",
+    "public/mermaid.min.js",
     "cordis.patch.yml",
     "DEPLOY.md"
   ],
