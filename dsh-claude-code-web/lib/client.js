@@ -562,6 +562,29 @@ window.__ModuleLoader__.load({
       el.appendChild(bar);
     }
 
+    // —— Mermaid 源码清洗（新增）——
+    // Claude Code 转录里存的内容会被 HTML 转义（--> 变 --&gt;、->> 变 -&gt;&gt;、
+    // <br/> 变 &lt;br/&gt;、&& 变 &amp;&amp;），部分还会带行号前缀（70\t / 34- / 35:）。
+    // 直接交给 mermaid.render 会解析失败（报 "Syntax error in text"）。
+    // 这里在渲染前统一清洗。用字符串替换而非 innerHTML 解码，避免误吞干净的 <br/>。
+    function normalizeMermaidSource(raw) {
+      return String(raw == null ? "" : raw)
+        // 1) 剥行号前缀：只匹配「数字 + 制表符/短横/冒号」开头，不误伤 mermaid 语句
+        .split("\n")
+        .map(function (line) {
+          return line.replace(/^\s*\d{1,6}(?:[\t-]|:\s+)\s*/, "");
+        })
+        .join("\n")
+        // 2) HTML 实体反转义：先 &amp; 再 &lt;/&gt;，避免 &amp;lt; 只解开一半
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#0?39;/g, "'")
+        .replace(/&apos;/g, "'")
+        .replace(/&nbsp;/g, " ");
+    }
+
     // 渲染一个 .ccw-mermaid 占位容器（幂等：已渲染/正在流式接收的跳过）
     function renderMermaidBlock(el) {
       if (!el || !el.getAttribute) return;
@@ -569,6 +592,7 @@ window.__ModuleLoader__.load({
       if (el.getAttribute("data-pending") === "1") return;     // 围栏尚未闭合，等下一帧
       let src = el.getAttribute("data-src") || "";
       try { src = decodeURIComponent(src); } catch (e) {}
+      src = normalizeMermaidSource(src);   // ← 新增：剥行号 + HTML 反转义
       if (!src.trim()) { el.setAttribute("data-ccw-mstate", "empty"); return; }
 
       const theme = detectDark(el) ? "dark" : "default";
