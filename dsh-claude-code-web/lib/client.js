@@ -1132,9 +1132,22 @@ window.__ModuleLoader__.load({
 
         function connect() {
           if (!alive) return;
-          let proto = "ws";
-          try { if (window.location.protocol === "https:") proto = "wss"; } catch (e) {}
-          let url = proto + "://" + window.location.host + API + "/stream";
+          // 连接地址必须用 DSH 注入的 transport 基址：桌面端主窗口是从自定义协议
+          // dsh-app://app/ 加载的，window.location.host 会是 "app"，直接拼出的
+          // ws://app/... 连不上。官方客户端同样用 __DSH_TRANSPORT__.streamBaseUrl
+          // （见 @deepseek-ai/dsh-api-gateway/lib/client.js）。取不到时退回原逻辑。
+          let url;
+          try {
+            const transport = globalThis.__DSH_TRANSPORT__;
+            const base = (transport && transport.streamBaseUrl) || document.baseURI;
+            const u = new URL(API + "/stream", base);
+            u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+            url = u.href;
+          } catch (e) {
+            let proto = "ws";
+            try { if (window.location.protocol === "https:") proto = "wss"; } catch (e2) {}
+            url = proto + "://" + window.location.host + API + "/stream";
+          }
           let sock;
           try { sock = new WebSocket(url); } catch (e) {
             if (alive) { setConn(false); schedule(); }
