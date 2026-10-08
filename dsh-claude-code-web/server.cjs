@@ -213,6 +213,37 @@ function pushMsg(r, m) {
   markDirty()
 }
 
+// 流式内容分层：SDK 会把同一条 assistant 消息按 content block 分组**多次**下发
+// （实测顺序：thinking 增量 → assistant[thinking] → text 增量 → assistant[text] → message_stop）。
+// 因此「整条消息到达即替换」是错的：第一组 assistant 到达时 text 增量还没来，替换后用掉的
+// 完成标记会让第二组 assistant 退化成追加，最终文本被拼接两遍。
+// 这里按「块类型」分层记录：auth = 已由完整块确认的内容，buf = 尚未确认的增量，
+// 渲染值始终为 auth + buf；某类型的完整块到达时只丢弃该类型的 buf。
+// 两个字段都是不可枚举属性，不会进入发给前端的快照。
+function streamState(am) {
+  if (!am._auth) {
+    Object.defineProperty(am, '_auth', {
+      value: { text: am.text || '', thinking: am.thinking || '' },
+      enumerable: false, writable: true, configurable: true,
+    })
+  }
+  if (!am._buf) {
+    Object.defineProperty(am, '_buf', {
+      value: { text: '', thinking: '' },
+      enumerable: false, writable: true, configurable: true,
+    })
+  }
+  return { auth: am._auth, buf: am._buf }
+}
+
+function applyStreamState(am) {
+  const st = streamState(am)
+  const t = st.auth.text + st.buf.text
+  const th = st.auth.thinking + st.buf.thinking
+  am.text = t.length > 200000 ? t.slice(0, 200000) : t
+  am.thinking = th.length > 200000 ? th.slice(0, 200000) : th
+}
+
 function stringifyContent(content) {
   if (content == null) return ''
   if (typeof content === 'string') return content
@@ -457,28 +488,36 @@ function handleMessage(r, msg) {
         if (x.role === 'assistant' && x.messageKey === key) { am = x; break }
       }
     }
-    const streamed = r._streamedKeys && r._streamedKeys.has(key)
     if (!am) {
       am = { id: r.counter++, role: 'assistant', messageKey: key, model: m.model || '', text: '', thinking: '' }
       pushMsg(r, am)
-    } else if (streamed) {
-      // 该消息已通过 stream_event 流式累积过，完整版到达后用完整内容替换，避免重复拼接
-      am.text = ''
-      am.thinking = ''
-      if (m.model) am.model = m.model
-      r._streamedKeys.delete(key)
+    } else if (m.model) {
+      am.model = m.model
     }
+    const st = streamState(am)
     const blocks = m.content || []
+    let gotText = false
+    let gotThinking = false
     for (let i = 0; i < blocks.length; i++) {
       const b = blocks[i]
       if (!b || typeof b !== 'object') continue
-      if (b.type === 'text') { if (am.text.length < 200000) am.text += b.text || '' }
-      else if (b.type === 'thinking') { if (am.thinking.length < 200000) am.thinking += b.thinking || '' }
-      else if (b.type === 'tool_use') {
+      if (b.type === 'text') {
+        // 完整 text 块并入 auth，同时作废待定的 text 增量（同一份内容不能再拼一次）
+        if (st.auth.text.length < 200000) st.auth.text += b.text || ''
+        gotText = true
+      } else if (b.type === 'thinking') {
+        if (st.auth.thinking.length < 200000) st.auth.thinking += b.thinking || ''
+        gotThinking = true
+      } else if (b.type === 'tool_use') {
         const tm = { id: r.counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'running' }
         if (isSubagentCall(tm.name, tm.input)) tm.sub = subagentInfo(tm.input)
         pushMsg(r, tm)
       }
+    }
+    if (gotText || gotThinking) {
+      if (gotText) st.buf.text = ''
+      if (gotThinking) st.buf.thinking = ''
+      applyStreamState(am)
     }
     return
   }
@@ -487,8 +526,6 @@ function handleMessage(r, msg) {
     if (ev.type === 'message_start') {
       const key = (ev.message && ev.message.id) || ('m' + (++r.counter))
       r._streamKey = key
-      if (!r._streamedKeys) r._streamedKeys = new Set()
-      r._streamedKeys.add(key)
       let am = (r._byKey && r._byKey[key]) || null
       if (!am) {
         for (let i = 0; i < r.messages.length; i++) {
@@ -510,11 +547,13 @@ function handleMessage(r, msg) {
         }
       }
       if (!am) return
+      const st = streamState(am)
       if (ev.delta.type === 'thinking_delta' && ev.delta.thinking) {
-        if (am.thinking.length < 200000) am.thinking += ev.delta.thinking
+        if (st.buf.thinking.length < 200000) st.buf.thinking += ev.delta.thinking
       } else if (ev.delta.type === 'text_delta' && ev.delta.text) {
-        if (am.text.length < 200000) am.text += ev.delta.text
-      }
+        if (st.buf.text.length < 200000) st.buf.text += ev.delta.text
+      } else return
+      applyStreamState(am)
       // 只推轻量增量帧，避免每 80ms 全量快照
       markStreamDirty(r, am)
     }
@@ -852,6 +891,7 @@ function clearSession() {
   r.messages = []
   r.counter = 0
   r._byKey = {}
+  r._streamKey = null
   r.status = 'idle'
   r.lastResult = null
   r.sessionCostUsd = 0
