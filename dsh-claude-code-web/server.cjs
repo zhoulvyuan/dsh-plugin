@@ -454,6 +454,11 @@ function snapshot() {
 
 function handleMessage(r, msg) {
   if (!msg || typeof msg !== 'object') return
+  // 子代理（sidechain）消息不下发到主会话：SDK 对「产生于子代理内部」的消息会把
+  // parent_tool_use_id 置为该 Agent 调用的 tool_use id，主会话消息则为 null。
+  // 不过滤的话，子代理自己的 thinking/正文会被当成主会话气泡渲染，与主 agent 的
+  // 转述内容重复（实测某轮 122 条 assistant 里 44 条是子代理消息）。
+  if (msg.parent_tool_use_id) return
   r.mtimeMs = Date.now()
   const type = msg.type
   // 流式文本增量走 markStreamDirty（轻量帧）；其余消息照旧触发全量快照
@@ -1116,6 +1121,9 @@ function loadHistoryMessages(sessionId) {
     if (!ln) continue
     let o
     try { o = JSON.parse(ln) } catch (e) { continue }
+    // 子代理内部记录不属于主会话（正常情况下子代理记录落在 subagents/*.jsonl，
+    // 这里只是防御：一旦同文件出现 sidechain 记录也不要渲染成主会话气泡）。
+    if (o.isSidechain === true) continue
     if (o.type === 'user' && o.message && o.message.content) {
       for (const b of o.message.content) {
         if (b.type === 'text' && b.text) {
