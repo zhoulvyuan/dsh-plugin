@@ -113,6 +113,10 @@ window.__ModuleLoader__.load({
 .ccw-msgtime-in { font-size:10px; opacity:.55; margin-top:3px; text-align:right; }
 .ccw-tool-out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:220px; overflow-y:auto; margin-top:4px; }
 .ccw-tool-fold { font-size:11px; opacity:.6; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; max-width:100%; }
+.ccw-sub-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-weight:600; }
+.ccw-sub-badge { font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; background:rgba(79,140,255,.16); color:#4f8cff; }
+.ccw-sub-meta { font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); margin-top:3px; }
+.ccw-sub-body { margin-top:6px; max-height:420px; overflow:auto; }
 .ccw-toasts { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:1200; pointer-events:none; }
 .ccw-toast { background:rgba(20,20,24,.92); color:#fff; font-size:12px; padding:7px 14px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:76%; }
 .ccw-toast.err { background:rgba(220,38,38,.95); }
@@ -752,6 +756,8 @@ window.__ModuleLoader__.load({
         && a.msg.decision === b.msg.decision
         && a.msg.result === b.msg.result
         && a.msg.isError === b.msg.isError
+        && a.msg.sub === b.msg.sub
+        && a.msg.meta === b.msg.meta
         && a.live === b.live
         && a.onFill === b.onFill
         && a.hl === b.hl
@@ -829,6 +835,34 @@ window.__ModuleLoader__.load({
         const sizeHint = hasResult ? formatChars(r.length) : "";
         const snippet = hasResult ? r.replace(/\s+/g, " ").trim() : "";
         const foldHint = snippet.length > 80 ? snippet.slice(0, 80) + "…" : snippet;
+        // 子代理（Agent/Task）：渲染成紧凑卡片，报告默认折叠，展开后用 Markdown 呈现
+        if (msg.sub) {
+          const metaBits = [];
+          let metaTitle = "";
+          if (msg.meta) {
+            if (msg.meta.tokens != null) { metaBits.push(formatTokensCompact(msg.meta.tokens) + " tokens"); metaTitle = formatTokensFull(msg.meta.tokens); }
+            if (msg.meta.durationMs != null) metaBits.push(formatDuration(msg.meta.durationMs));
+            if (msg.meta.toolUses != null) metaBits.push(msg.meta.toolUses + " 次工具调用");
+          }
+          const subMd = hasResult && toolOpen ? renderMarkdown(shown) : "";
+          const subHtml = subMd && query ? highlightHtml(subMd, query) : subMd;
+          return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+            React.createElement("div", { className: "ccw-sub-head" },
+              "🤖 子代理",
+              msg.sub.type ? React.createElement("span", { className: "ccw-sub-badge" }, msg.sub.type) : null,
+              msg.sub.description ? React.createElement("span", { className: "ccw-dim" }, msg.sub.description) : null,
+              React.createElement("span", { className: "ccw-dim" }, msg.status === "running" ? "（运行中…）" : " ✓"),
+            ),
+            metaBits.length ? React.createElement("div", { className: "ccw-sub-meta", title: metaTitle || undefined }, metaBits.join(" · ")) : null,
+            hasResult ? React.createElement("button", {
+              type: "button", className: "ccw-think-toggle", style: { marginTop: 4 },
+              onClick: function () { setToolOpen(function (v) { return !v; }); },
+              title: toolOpen ? "收起子代理报告" : "查看子代理报告",
+            }, toolOpen ? "▾ 收起报告" : "▸ 查看报告（" + sizeHint + "）") : null,
+            subHtml ? React.createElement("div", { className: "ccw-md ccw-sub-body", dangerouslySetInnerHTML: { __html: subHtml } }) : null,
+            hasResult && !toolOpen ? React.createElement("div", { className: "ccw-tool-fold", title: "报告已折叠（" + sizeHint + "），点击上方「查看报告」展开" }, "已折叠 " + sizeHint + "：" + foldHint) : null,
+          );
+        }
         return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
           "🛠 ", highlightNodes(msg.name || "工具", query), (msg.status === "running" ? "（运行中…）" : " ✓"),
           hasResult ? React.createElement("button", {
@@ -950,6 +984,13 @@ window.__ModuleLoader__.load({
     function formatTokensFull(n) {
       if (n == null || !isFinite(n) || n < 0) return "";
       return n.toLocaleString("en-US") + " tokens";
+    }
+    // token 量（紧凑自适应：<1K 原样、<1M 用 K、否则用 M），子代理卡片等窄处使用
+    function formatTokensCompact(n) {
+      if (n == null || !isFinite(n) || n < 0) return null;
+      if (n < 1000) return String(n);
+      if (n < 1000000) return (n / 1000).toFixed(1) + "K";
+      return (n / 1000000).toFixed(2) + "M";
     }
     // 字符量：工具输出折叠提示用（<1000 原样，<10000 用 K，否则用 万）
     function formatChars(n) {

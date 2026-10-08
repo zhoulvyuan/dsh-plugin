@@ -231,6 +231,94 @@ function stringifyContent(content) {
   return String(content)
 }
 
+// ── 子代理（Agent / Task）结果规整 ────────────────────────────────────
+// 子代理 hand-back 的 tool_result 是一段包裹了 harness 样板的文本：
+//   前缀：「[Subagent hand-back] ... The report follows:」
+//   尾部：「agentId: ... <usage>subagent_tokens: N / tool_uses: N / duration_ms: N</usage>」
+//   正文：每行被 harness 整体缩进
+// 这里剥掉样板与公共缩进只留报告正文，并顺带解析出可直接展示的元数据。
+const SUBAGENT_TOOL_NAMES = { Agent: true, Task: true }
+const SUBAGENT_FRAME = 'The report follows:'
+// agentId 行 + 可选的 <usage> 块（两者都在文本末尾）
+const SUBAGENT_FOOTER_RE = /\n?agentId:\s*\S+[^\n]*(?:\n<usage>[\s\S]*?<\/usage>)?[ \t]*$/
+
+function isSubagentCall(name, input) {
+  if (name && SUBAGENT_TOOL_NAMES[name]) return true
+  return !!(input && typeof input === 'object' && input.subagent_type)
+}
+
+function subagentInfo(input) {
+  const i = input && typeof input === 'object' ? input : {}
+  return {
+    type: typeof i.subagent_type === 'string' ? i.subagent_type : '',
+    description: typeof i.description === 'string' ? i.description : '',
+    background: !!i.run_in_background,
+  }
+}
+
+function parseSubagentFooter(text) {
+  const s = String(text || '')
+  const num = function (key) {
+    const m = new RegExp(key + ':\\s*(\\d+)').exec(s)
+    return m ? parseInt(m[1], 10) : null
+  }
+  const idm = /agentId:\s*(\S+)/.exec(s)
+  const meta = {
+    agentId: idm ? idm[1] : null,
+    tokens: num('subagent_tokens'),
+    toolUses: num('tool_uses'),
+    durationMs: num('duration_ms'),
+  }
+  if (meta.agentId == null && meta.tokens == null && meta.toolUses == null && meta.durationMs == null) return null
+  return meta
+}
+
+// 逐行去掉公共前导缩进（harness 会给报告每一行整体缩进）
+function dedentText(text) {
+  const lines = String(text == null ? '' : text).split('\n')
+  let min = Infinity
+  for (const l of lines) {
+    if (!l.trim()) continue
+    const n = l.length - l.replace(/^[ \t]+/, '').length
+    if (n < min) min = n
+  }
+  if (!isFinite(min) || min === 0) return lines.join('\n')
+  return lines.map(function (l) {
+    if (!l.trim()) return ''
+    return l.length >= min ? l.slice(min) : l.replace(/^[ \t]+/, '')
+  }).join('\n')
+}
+
+// 入参：原始 tool_result 文本 + 可选的结构化字段（历史 jsonl 的 toolUseResult / SDK 的 tool_use_result）
+function normalizeSubagentResult(text, structured) {
+  const raw = String(text == null ? '' : text)
+  const out = { body: raw, meta: null }
+  const st = structured && typeof structured === 'object' ? structured : null
+  if (st) {
+    const m = {
+      agentId: st.agentId || null,
+      agentType: st.agentType || null,
+      tokens: st.totalTokens != null ? st.totalTokens : null,
+      toolUses: st.totalToolUseCount != null ? st.totalToolUseCount : null,
+      durationMs: st.totalDurationMs != null ? st.totalDurationMs : null,
+    }
+    if (m.agentId || m.agentType || m.tokens != null || m.toolUses != null || m.durationMs != null) out.meta = m
+  }
+  // 只在确实是 hand-back 形态时才剥样板，避免误伤普通工具输出
+  const framed = raw.indexOf(SUBAGENT_FRAME) !== -1 || SUBAGENT_FOOTER_RE.test(raw)
+  if (framed) {
+    let s = raw
+    const fi = s.indexOf(SUBAGENT_FRAME)
+    if (fi !== -1) s = s.slice(fi + SUBAGENT_FRAME.length)
+    const footerMeta = parseSubagentFooter(s)
+    s = s.replace(SUBAGENT_FOOTER_RE, '')
+    const body = dedentText(s).trim()
+    if (body !== '') out.body = body        // 兜底：若剥成空串则保留原文
+    if (!out.meta && footerMeta) out.meta = footerMeta
+  }
+  return out
+}
+
 function plainSession(r) {
   return {
     key: r.key,
@@ -387,7 +475,9 @@ function handleMessage(r, msg) {
       if (b.type === 'text') { if (am.text.length < 200000) am.text += b.text || '' }
       else if (b.type === 'thinking') { if (am.thinking.length < 200000) am.thinking += b.thinking || '' }
       else if (b.type === 'tool_use') {
-        pushMsg(r, { id: r.counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'running' })
+        const tm = { id: r.counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'running' }
+        if (isSubagentCall(tm.name, tm.input)) tm.sub = subagentInfo(tm.input)
+        pushMsg(r, tm)
       }
     }
     return
@@ -440,9 +530,17 @@ function handleMessage(r, msg) {
         for (let j = 0; j < r.messages.length; j++) {
           const x = r.messages[j]
           if (x.role === 'tool' && x.toolUseId === tid) {
-            x.result = stringifyContent(b.content)
             x.isError = !!b.is_error
             x.status = 'done'
+            const raw = stringifyContent(b.content)
+            if (x.sub) {
+              // 子代理报告：剥掉 harness 样板与缩进，并补充元数据
+              const norm = normalizeSubagentResult(raw, msg.tool_use_result || msg.toolUseResult)
+              x.result = norm.body
+              if (norm.meta) x.meta = Object.assign({}, x.meta, norm.meta)
+            } else {
+              x.result = raw
+            }
             break
           }
         }
@@ -987,9 +1085,17 @@ function loadHistoryMessages(sessionId) {
           const tid = b.tool_use_id
           for (let j = msgs.length - 1; j >= 0; j--) {
             if (msgs[j].role === 'tool' && msgs[j].toolUseId === tid) {
-              msgs[j].result = stringifyContent(b.content)
               msgs[j].isError = !!b.is_error
               msgs[j].status = 'done'
+              const raw = stringifyContent(b.content)
+              if (msgs[j].sub) {
+                // 子代理报告：元数据优先取 jsonl 的 toolUseResult（含 agentType/用量），正文剥样板
+                const norm = normalizeSubagentResult(raw, o.toolUseResult)
+                msgs[j].result = norm.body
+                if (norm.meta) msgs[j].meta = Object.assign({}, msgs[j].meta, norm.meta)
+              } else {
+                msgs[j].result = raw
+              }
               break
             }
           }
@@ -1021,7 +1127,9 @@ function loadHistoryMessages(sessionId) {
         else if (b.type === 'tool_use') {
           flush()
           am = null
-          msgs.push({ id: counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'done' })
+          const tm = { id: counter++, role: 'tool', toolUseId: b.id, name: b.name || 'Tool', input: b.input || {}, result: null, isError: false, status: 'done' }
+          if (isSubagentCall(tm.name, tm.input)) tm.sub = subagentInfo(tm.input)
+          msgs.push(tm)
         }
       }
       flush()
@@ -1737,6 +1845,9 @@ module.exports = {
   readModels,
   claudeCheckUpdate,
   claudeUpdate,
+  // 子代理结果规整 / 历史加载（纯函数，供测试与调试）
+  normalizeSubagentResult,
+  loadHistoryMessages,
 }
 
 // 独立运行入口：node server.js 直接执行时才监听端口
