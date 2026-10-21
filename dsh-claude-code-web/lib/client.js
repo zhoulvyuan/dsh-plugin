@@ -20,162 +20,540 @@ window.__ModuleLoader__.load({
     // 样式注入（跟随 md-workspace 的做法：document 注入 <style>）
     // ------------------------------------------------------------------
     const CSS = `
-.ccw { position:absolute; display:flex; flex-direction:column; background:var(--dsw-alias-bg-base,#151517); color:var(--dsw-alias-label-primary,#1f2937); font-size:13px; border:1px solid var(--dsw-alias-border-l2,#e5e7eb); border-radius:12px; box-shadow:0 16px 48px rgba(0,0,0,.18); overflow:hidden; pointer-events:auto; z-index:40; }
+.ccw, .ccw-mini-pill {
+    /* ===== Claude 风格令牌（浅色） ===== */
+  --ccw-bg:#FBFAF7; --ccw-surface:#FFFFFF; --ccw-surface-2:#F5F3EE; --ccw-surface-3:#EDEAE2;
+  --ccw-border:#E7E4DC; --ccw-border-strong:#D6D1C6;
+  --ccw-text:#141413; --ccw-text-2:#55544F; --ccw-text-3:#8A877E;
+  --ccw-accent:#C96442; --ccw-accent-hover:#B4563A; --ccw-accent-fg:#FFFFFF; --ccw-accent-soft:#F6E7E0;
+  --ccw-success:#2F7D5B; --ccw-success-soft:rgba(47,125,91,.10);
+  --ccw-warn:#B7791F; --ccw-warn-soft:rgba(183,121,31,.10);
+  --ccw-danger:#B4453A; --ccw-danger-fg:#FFFFFF; --ccw-danger-soft:rgba(180,69,58,.10);
+  --ccw-selected:#F6E7E0; --ccw-code:#F1EEE6; --ccw-mark:#F2D98B; --ccw-mark-fg:#141413;
+  --ccw-toast-bg:#1F1E1B; --ccw-toast-fg:#F2F0EA;
+}
+.ccw {
+  position:absolute; display:flex; flex-direction:column;
+  background:var(--ccw-bg); color:var(--ccw-text); font-size:13px;
+  border:1px solid var(--ccw-border); border-radius:14px;
+  box-shadow:0 24px 64px -24px rgba(24,20,14,.45), 0 6px 18px -10px rgba(24,20,14,.18);
+  overflow:hidden; pointer-events:auto; z-index:40;
+}
+.ccw[data-ccw-theme="dark"], .ccw-mini-pill[data-ccw-theme="dark"] {
+  --ccw-bg:#1C1B19; --ccw-surface:#232220; --ccw-surface-2:#1F1E1B; --ccw-surface-3:#2A2825;
+  --ccw-border:#33312C; --ccw-border-strong:#44413A;
+  --ccw-text:#F2F0EA; --ccw-text-2:#B5B1A7; --ccw-text-3:#8A867C;
+  --ccw-accent:#E08A6D; --ccw-accent-hover:#EBA083; --ccw-accent-fg:#1C1B19; --ccw-accent-soft:#3A2A22;
+  --ccw-success:#6FBF95; --ccw-success-soft:rgba(111,191,149,.14);
+  --ccw-warn:#D9A441; --ccw-warn-soft:rgba(217,164,65,.14);
+  --ccw-danger:#E07A6E; --ccw-danger-fg:#1C1B19; --ccw-danger-soft:rgba(224,122,110,.14);
+  --ccw-selected:#3A2A22; --ccw-code:#2A2825; --ccw-mark:#6B5A2A; --ccw-mark-fg:#F2F0EA;
+  --ccw-toast-bg:#2A2825; --ccw-toast-fg:#F2F0EA;
+}
+
 .ccw * { box-sizing:border-box; }
 .ccw-resize-se { position:absolute; right:0; bottom:0; width:18px; height:18px; cursor:nwse-resize; z-index:41; }
-.ccw-resize-se::after { content:""; position:absolute; right:4px; bottom:4px; width:9px; height:9px; border-right:2px solid var(--dsw-alias-label-secondary,#9ca3af); border-bottom:2px solid var(--dsw-alias-label-secondary,#9ca3af); opacity:.6; }
-.ccw-titlebar { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); flex:none; cursor:grab; }
+.ccw-resize-se::after { content:""; position:absolute; right:4px; bottom:4px; width:9px; height:9px; border-right:2px solid var(--ccw-text-3); border-bottom:2px solid var(--ccw-text-3); opacity:.6; }
+.ccw-titlebar { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--ccw-border); flex:none; cursor:grab; }
 .ccw-titlebar:active { cursor:grabbing; }
 .ccw-brand { font-weight:600; font-size:13px; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+.ccw-local { flex:none; padding:1px 4px; border:1px solid var(--ccw-border); border-radius:3px; color:var(--ccw-text-3); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9px; font-weight:400; line-height:12px; letter-spacing:.05em; }
 .ccw-logo { flex:none; display:block; }
 .ccw-conn { font-size:11px; white-space:nowrap; }
 .ccw-close { border:none; background:transparent; color:inherit; cursor:pointer; font-size:16px; line-height:1; padding:4px 6px; border-radius:6px; }
-.ccw-close:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
+.ccw-close:hover { background:var(--ccw-surface-3); }
 .ccw-max { border:none; background:transparent; color:inherit; cursor:pointer; font-size:12px; line-height:1; padding:5px 8px; border-radius:6px; white-space:nowrap; }
-.ccw-max:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
+.ccw-max:hover { background:var(--ccw-surface-3); }
 .ccw-toggle { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 9px; border:1px solid transparent; border-radius:7px; background:transparent; color:inherit; cursor:pointer; font-size:12px; }
-.ccw-toggle:hover { background:var(--dsw-alias-button-floating-hover,rgba(0,0,0,.06)); }
-.ccw-toggle-active { background:var(--dsw-alias-button-floating-fill,rgba(37,99,235,.12)); color:#2563eb; }
-.ccw-topbar { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); flex:none; }
+.ccw-toggle:hover { background:var(--ccw-surface-3); }
+.ccw-toggle-active { background:var(--ccw-accent-soft); color:var(--ccw-accent); }
+.ccw-topbar { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--ccw-border); flex:none; }
 .ccw-body { flex:1; display:flex; min-height:0; }
-.ccw-sidebar { flex:none; overflow-y:auto; border-right:1px solid var(--dsw-alias-border-l1,#e5e7eb); padding:8px; }
-.ccw-split { flex:none; width:5px; cursor:col-resize; background:var(--dsw-alias-border-l2,#e5e7eb); touch-action:none; z-index:2; }
-.ccw-split:hover { background:#4f8cff; }
-.ccw-main { flex:1; min-width:0; display:flex; flex-direction:column; }
+.ccw-sidebar { flex:none; overflow-y:auto; border-right:1px solid var(--ccw-border); padding:8px; }
+.ccw-split { flex:none; width:5px; cursor:col-resize; background:var(--ccw-border-strong); touch-action:none; z-index:2; }
+.ccw-split:hover { background:var(--ccw-accent); }
+.ccw-main { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; }
 .ccw-msgs { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
-.ccw-footer { flex:none; border-top:1px solid var(--dsw-alias-border-l1,#e5e7eb); padding:8px 10px 10px; display:flex; flex-direction:column; }
+.ccw-footer { flex:none; border-top:1px solid var(--ccw-border); padding:8px 10px 10px; display:flex; flex-direction:column; }
 .ccw-input-row { display:flex; align-items:flex-end; gap:8px; }
-.ccw-input { flex:1; resize:none; min-height:40px; max-height:360px; padding:8px 10px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:8px; font:inherit; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
-.ccw-input:focus { outline:none; border-color:#4f8cff; }
-.ccw-btn { border:1px solid var(--dsw-alias-border-l2,#d1d5db); background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border-radius:8px; padding:8px 12px; cursor:pointer; font:inherit; white-space:nowrap; }
-.ccw-btn:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-btn.primary { background:#2563eb; border-color:#2563eb; color:#fff; }
-.ccw-btn.primary:hover { background:#1d4ed8; }
-.ccw-btn.danger { background:var(--dsw-alias-state-error-primary,#dc2626); border-color:var(--dsw-alias-state-error-primary,#dc2626); color:#fff; }
+.ccw-input { flex:1; resize:none; min-height:40px; max-height:360px; padding:8px 10px; border:1px solid var(--ccw-border-strong); border-radius:8px; font:inherit; background:var(--ccw-surface); color:var(--ccw-text); }
+.ccw-input:focus { outline:none; border-color:var(--ccw-accent); }
+.ccw-btn { border:1px solid var(--ccw-border-strong); background:var(--ccw-surface); color:var(--ccw-text); border-radius:8px; padding:8px 12px; cursor:pointer; font:inherit; white-space:nowrap; }
+.ccw-btn:hover { background:var(--ccw-surface-3); }
+.ccw-btn.primary { background:var(--ccw-accent); border-color:var(--ccw-accent); color:#fff; }
+.ccw-btn.primary:hover { background:var(--ccw-accent-hover); }
+.ccw-btn.danger { background:var(--ccw-danger); border-color:var(--ccw-danger); color:#fff; }
 .ccw-btn.small { padding:4px 8px; font-size:12px; border-radius:6px; }
 .ccw-btn:disabled { opacity:.5; cursor:not-allowed; }
 .ccw-ws { margin-bottom:6px; }
 .ccw-ws-head { display:flex; align-items:center; gap:4px; cursor:pointer; padding:4px 6px; border-radius:6px; font-weight:600; }
-.ccw-ws-head:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-ws-head.current { background:rgba(79,140,255,.14); }
-.ccw-ws-cur { width:7px; height:7px; border-radius:50%; background:#4f8cff; flex:none; }
+.ccw-ws-head:hover { background:var(--ccw-surface-3); }
+.ccw-ws-head.current { background:var(--ccw-selected); }
+.ccw-ws-cur { width:7px; height:7px; border-radius:50%; background:var(--ccw-accent); flex:none; }
 .ccw-ws-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .ccw-srow { display:flex; align-items:center; gap:6px; padding:5px 6px 5px 18px; border-radius:6px; cursor:pointer; }
-.ccw-srow:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-srow.active { background:rgba(79,140,255,.14); }
+.ccw-srow:hover { background:var(--ccw-surface-3); }
+.ccw-srow .ccw-sdim { transition:opacity .12s; }
+.ccw-srow:hover .ccw-sdim { opacity:0; }
+.ccw-srow-actions { position:absolute; right:6px; top:50%; transform:translateY(-50%); margin:0; padding:0 2px 0 10px; background:inherit; border-radius:6px; display:inline-flex; gap:2px; opacity:0; pointer-events:none; transition:opacity .12s; }
+.ccw-srow:hover .ccw-srow-actions, .ccw-srow:focus-within .ccw-srow-actions { opacity:1; pointer-events:auto; }
+.ccw-ws-head .ccw-icbtn { opacity:0; pointer-events:none; }
+.ccw-ws-head:hover .ccw-icbtn, .ccw-ws-head:focus-within .ccw-icbtn { opacity:1; pointer-events:auto; }
+.ccw-srow.active { background:var(--ccw-selected); }
 .ccw-stitle { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.ccw-sdim { flex:none; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; padding-left:6px; }
+.ccw-sdim { flex:none; font-size:11px; color:var(--ccw-text-3); white-space:nowrap; padding-left:6px; }
 .ccw-sdot { width:8px; height:8px; border-radius:50%; flex:none; }
 .ccw-msg { max-width:86%; padding:8px 12px; border-radius:10px; line-height:1.55; overflow-wrap:anywhere; }
-.ccw-msg.user { align-self:flex-end; background:#2563eb; color:#fff; white-space:pre-wrap; }
-.ccw-msg.assistant { align-self:flex-start; background:var(--dsw-alias-bg-layer-1,#f3f4f6); }
-.ccw-msg.tool { align-self:flex-start; background:var(--dsw-alias-bg-layer-1,#f3f4f6); font-size:12px; opacity:.85; }
+.ccw-msg.user { align-self:flex-end; background:var(--ccw-accent); color:#fff; white-space:pre-wrap; }
+.ccw-msg.assistant { align-self:flex-start; background:var(--ccw-surface-2); }
+.ccw-msg.tool { align-self:flex-start; background:var(--ccw-surface-2); font-size:12px; opacity:.85; }
 .ccw-msg.result { align-self:flex-start; font-size:12px; }
-.ccw-msg.result.err { color:var(--dsw-alias-state-error-primary,#dc2626); }
-.ccw-thinking { font-size:12px; opacity:.65; white-space:pre-wrap; border-left:3px solid #cbd5e1; padding-left:8px; margin-bottom:6px; }
-.ccw-think-toggle { display:inline-flex; align-items:center; gap:6px; border:none; background:transparent; color:var(--dsw-alias-label-secondary,#9ca3af); font-size:12px; cursor:pointer; padding:2px 0; margin-bottom:4px; }
-.ccw-think-toggle:hover { color:var(--dsw-alias-label-primary,#1f2937); }
+.ccw-msg.result.err { color:var(--ccw-danger); }
+.ccw-thinking { font-size:12px; opacity:.65; white-space:pre-wrap; border-left:3px solid var(--ccw-border-strong); padding-left:8px; margin-bottom:6px; }
+.ccw-think-toggle { display:inline-flex; align-items:center; gap:6px; border:none; background:transparent; color:var(--ccw-text-3); font-size:12px; cursor:pointer; padding:2px 0; margin-bottom:4px; }
+.ccw-think-toggle:hover { color:var(--ccw-text); }
 .ccw-think-chev { font-size:10px; line-height:1; }
 .ccw-think-label { font-weight:500; }
-.ccw-think-pulse { width:6px; height:6px; border-radius:50%; background:#9ca3af; animation:ccwPulse 1s ease-in-out infinite; }
+.ccw-think-pulse { width:6px; height:6px; border-radius:50%; background:var(--ccw-text-3); animation:ccwPulse 1s ease-in-out infinite; }
 @keyframes ccwPulse { 0%,100% { opacity:.2; } 50% { opacity:1; } }
 .ccw-md { line-height:1.6; overflow-wrap:anywhere; }
 .ccw-md .ccw-p { margin:4px 0; }
-.ccw-md .ccw-pre { background:rgba(0,0,0,.05); border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; padding:8px 10px; overflow-x:auto; margin:6px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+.ccw-md .ccw-pre { background:var(--ccw-code); border:1px solid var(--ccw-border-strong); border-radius:6px; padding:8px 10px; overflow-x:auto; margin:6px 0; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
 .ccw-md .ccw-pre code { font-family:inherit; white-space:pre; }
-.ccw-md .ccw-icode { background:rgba(0,0,0,.06); border-radius:4px; padding:1px 5px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
+.ccw-md .ccw-icode { background:var(--ccw-code); border-radius:4px; padding:1px 5px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12px; }
 .ccw-md .ccw-h { margin:8px 0 4px; font-weight:600; line-height:1.3; }
 .ccw-md h1.ccw-h { font-size:17px; }
 .ccw-md h2.ccw-h { font-size:15px; }
 .ccw-md h3.ccw-h, .ccw-md h4.ccw-h, .ccw-md h5.ccw-h, .ccw-md h6.ccw-h { font-size:13.5px; }
 .ccw-md .ccw-ul, .ccw-md .ccw-ol { margin:4px 0; padding-left:20px; }
 .ccw-md .ccw-ul li, .ccw-md .ccw-ol li { margin:2px 0; }
-.ccw-md .ccw-bq { border-left:3px solid var(--dsw-alias-border-l2,#cbd5e1); padding:2px 10px; margin:6px 0; opacity:.85; }
+.ccw-md .ccw-bq { border-left:3px solid var(--ccw-border-strong); padding:2px 10px; margin:6px 0; opacity:.85; }
 .ccw-md .ccw-table-wrap { overflow-x:auto; margin:6px 0; }
 .ccw-md .ccw-table { border-collapse:collapse; width:100%; min-width:320px; }
-.ccw-md .ccw-table th, .ccw-md .ccw-table td { border:1px solid var(--dsw-alias-border-l2,#d1d5db); padding:5px 10px; font-size:12px; text-align:left; }
-.ccw-md .ccw-table th { background:var(--dsw-alias-bg-layer-2,#f3f4f6); font-weight:600; }
-.ccw-md .ccw-hr { border:none; border-top:1px solid var(--dsw-alias-border-l2,#d1d5db); margin:8px 0; }
-.ccw-md .ccw-a { color:#2563eb; text-decoration:none; }
+.ccw-md .ccw-table th, .ccw-md .ccw-table td { border:1px solid var(--ccw-border-strong); padding:5px 10px; font-size:12px; text-align:left; }
+.ccw-md .ccw-table th { background:var(--ccw-surface-3); font-weight:600; }
+.ccw-md .ccw-hr { border:none; border-top:1px solid var(--ccw-border-strong); margin:8px 0; }
+.ccw-md .ccw-a { color:var(--ccw-accent); text-decoration:none; }
 .ccw-md .ccw-a:hover { text-decoration:underline; }
 .ccw-md strong { font-weight:600; }
 .ccw-md em { font-style:italic; }
-.ccw-md .ccw-mermaid { margin:8px 0; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:8px; padding:8px 10px; background:var(--dsw-alias-bg-base,#fff); overflow-x:auto; }
-.ccw-md .ccw-mermaid-status { font-size:12px; color:var(--dsw-alias-label-secondary,#9ca3af); padding:2px 0; }
+.ccw-md .ccw-mermaid { margin:8px 0; border:1px solid var(--ccw-border-strong); border-radius:8px; padding:8px 10px; background:var(--ccw-surface); overflow-x:auto; }
+.ccw-md .ccw-mermaid-status { font-size:12px; color:var(--ccw-text-3); padding:2px 0; }
 .ccw-md .ccw-mermaid-svg { text-align:center; }
 .ccw-md .ccw-mermaid-svg svg { max-width:100%; height:auto; display:inline-block; }
 .ccw-md .ccw-mermaid-bar { display:flex; justify-content:flex-end; gap:6px; margin-top:4px; }
-.ccw-md .ccw-mermaid-err { font-size:12px; color:var(--dsw-alias-state-error-primary,#dc2626); margin-bottom:4px; white-space:pre-wrap; }
+.ccw-md .ccw-mermaid-err { font-size:12px; color:var(--ccw-danger); margin-bottom:4px; white-space:pre-wrap; }
 .ccw-md .ccw-mermaid .ccw-mermaid-src { margin:4px 0 0; }
 .ccw-pre-wrap { position:relative; }
-.ccw-code-copy { position:absolute; top:6px; right:6px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border-radius:4px; font-size:10px; padding:2px 6px; cursor:pointer; opacity:.55; }
+.ccw-code-copy { position:absolute; top:6px; right:6px; border:1px solid var(--ccw-border-strong); background:var(--ccw-surface); color:var(--ccw-text); border-radius:4px; font-size:10px; padding:2px 6px; cursor:pointer; opacity:.55; }
 .ccw-code-copy:hover { opacity:1; }
 .ccw-msgtime-in { font-size:10px; opacity:.55; margin-top:3px; text-align:right; }
-.ccw-tool-out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:220px; overflow-y:auto; margin-top:4px; }
-.ccw-tool-fold { font-size:11px; opacity:.6; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; max-width:100%; }
+.ccw-tool-out { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:var(--ccw-code); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:220px; overflow-y:auto; margin-top:4px; }
+.ccw-tool-fold { font-size:11px; opacity:.6; color:var(--ccw-text-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:3px; max-width:100%; }
 .ccw-sub-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-weight:600; }
-.ccw-sub-badge { font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; background:rgba(79,140,255,.16); color:#4f8cff; }
-.ccw-sub-meta { font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); margin-top:3px; }
+.ccw-sub-badge { font-size:11px; font-weight:600; padding:1px 7px; border-radius:999px; background:var(--ccw-accent-soft); color:var(--ccw-accent); }
+.ccw-sub-meta { font-size:11px; color:var(--ccw-text-3); margin-top:3px; }
 .ccw-sub-body { margin-top:6px; max-height:420px; overflow:auto; }
-.ccw-toasts { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:1200; pointer-events:none; }
-.ccw-toast { background:rgba(20,20,24,.92); color:#fff; font-size:12px; padding:7px 14px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:76%; }
-.ccw-toast.err { background:rgba(220,38,38,.95); }
-.ccw-toast.ok { background:rgba(22,163,74,.95); }
-.ccw-mini-pill { position:absolute; right:20px; bottom:20px; display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px; background:var(--dsw-alias-bg-base,#151517); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); box-shadow:0 8px 24px rgba(0,0,0,.25); cursor:pointer; font-size:12px; font-weight:600; color:var(--dsw-alias-label-primary,#1f2937); z-index:40; }
-.ccw-wsfilter { width:100%; margin-bottom:8px; padding:5px 8px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; font-size:12px; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
+.ccw-toasts { position:absolute; left:50%; bottom:64px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:1200; pointer-events:none; width:max-content; max-width:calc(100% - 32px); }
+.ccw-toast { background:var(--ccw-toast-bg); color:var(--ccw-toast-fg); font-size:12px; padding:7px 14px; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:min(420px,90vw); box-sizing:border-box; }
+.ccw-toast.err { background:var(--ccw-danger); }
+.ccw-toast.ok { background:var(--ccw-success); }
+.ccw-mini-pill { position:absolute; right:20px; bottom:20px; display:inline-flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px; background:var(--ccw-surface); border:1px solid var(--ccw-border-strong); box-shadow:0 8px 24px rgba(0,0,0,.25); cursor:pointer; font-size:12px; font-weight:600; color:var(--ccw-text); z-index:40; }
+.ccw-wsfilter { width:100%; margin-bottom:8px; padding:5px 8px; border:1px solid var(--ccw-border-strong); border-radius:6px; font:inherit; font-size:12px; background:var(--ccw-surface); color:var(--ccw-text); }
 .ccw-loadmore { align-self:center; margin-bottom:4px; }
-.ccw-batchbar { align-self:stretch; display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid #f59e0b; background:rgba(245,158,11,.08); border-radius:8px; font-size:12px; margin-bottom:2px; }
-.ccw-queued { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); padding:0 2px 4px; }
+.ccw-batchbar { align-self:stretch; display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--ccw-warn); background:var(--ccw-warn-soft); border-radius:8px; font-size:12px; margin-bottom:2px; }
+.ccw-queued { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ccw-text-3); padding:0 2px 4px; }
 .ccw-img-chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; padding:0 2px; }
-.ccw-img-chip { display:inline-flex; align-items:center; gap:4px; font-size:11px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; padding:2px 6px; background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-pop-hint { color:var(--dsw-alias-label-secondary,#9ca3af); font-size:10px; margin-left:4px; }
-.ccw-umsg-edit { float:right; border:none; background:rgba(255,255,255,.25); color:#fff; cursor:pointer; font-size:10px; border-radius:4px; padding:1px 5px; margin-left:8px; opacity:.75; }
+.ccw-img-chip { display:inline-flex; align-items:center; gap:4px; font-size:11px; border:1px solid var(--ccw-border-strong); border-radius:6px; padding:2px 6px; background:var(--ccw-surface-3); }
+.ccw-pop-hint { color:var(--ccw-text-3); font-size:10px; margin-left:4px; }
+.ccw-umsg-edit { float:right; border:none; background:var(--ccw-surface-3); color:var(--ccw-text-3); cursor:pointer; font-size:10px; border-radius:4px; padding:1px 5px; margin-left:8px; opacity:.75; }
 .ccw-umsg-edit:hover { opacity:1; }
-.ccw-dialog-input { width:100%; padding:7px 9px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
-.ccw-dim { color:var(--dsw-alias-label-secondary,#9ca3af); font-size:12px; }
-.ccw-icbtn { flex:none; border:none; background:transparent; color:var(--dsw-alias-label-secondary,#9ca3af); cursor:pointer; font-size:11px; line-height:1; padding:3px 4px; border-radius:4px; opacity:.65; }
-.ccw-icbtn:hover { background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.18)); color:var(--dsw-alias-label-primary,#1f2937); opacity:1; }
+.ccw-dialog-input { width:100%; padding:7px 9px; border:1px solid var(--ccw-border-strong); border-radius:6px; font:inherit; background:var(--ccw-surface); color:var(--ccw-text); }
+.ccw-dim { color:var(--ccw-text-3); font-size:12px; }
+.ccw-icbtn { flex:none; border:none; background:transparent; color:var(--ccw-text-3); cursor:pointer; font-size:11px; line-height:1; padding:3px 4px; border-radius:4px; opacity:.65; }
+.ccw-icbtn:hover { background:var(--ccw-surface-3); color:var(--ccw-text); opacity:1; }
 .ccw-srow-actions { display:inline-flex; gap:2px; flex:none; margin-left:4px; opacity:.35; transition:opacity .12s; }
 .ccw-srow:hover .ccw-srow-actions { opacity:1; }
-.ccw-ctl { align-self:stretch; max-width:100%; border:1px solid #f59e0b; background:rgba(245,158,11,.06); }
+.ccw-ctl { align-self:stretch; max-width:100%; border:1px solid var(--ccw-warn); background:var(--ccw-warn-soft); }
 .ccw-ctl-head { font-weight:600; margin-bottom:6px; }
-.ccw-ctl-input { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(127,127,127,.12); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:180px; overflow-y:auto; margin-bottom:8px; }
+.ccw-ctl-input { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:var(--ccw-code); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:180px; overflow-y:auto; margin-bottom:8px; }
 .ccw-ctl-actions { display:flex; gap:8px; }
-.ccw-pop-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; margin-bottom:6px; border:1px solid var(--dsw-alias-border-l1,#e5e7eb); border-radius:8px; padding:4px; background:var(--dsw-alias-bg-layer-1,#f9fafb); }
+.ccw-pop-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; margin-bottom:6px; border:1px solid var(--ccw-border); border-radius:8px; padding:4px; background:var(--ccw-surface-2); }
 .ccw-pop-item { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:12px; white-space:nowrap; overflow:hidden; }
-.ccw-pop-item:hover, .ccw-pop-item.sel { background:rgba(79,140,255,.14); }
-.ccw-pop-kind { flex:none; font-size:10px; color:var(--dsw-alias-label-secondary,#9ca3af); border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:4px; padding:0 4px; }
-.ccw-pop-kind.skill { color:#7c3aed; border-color:#7c3aed; }
-.ccw-resize { height:6px; cursor:row-resize; margin:0 2px 6px; border-radius:3px; background:var(--dsw-alias-border-l2,#d1d5db); opacity:.5; }
-.ccw-resize:hover { opacity:1; background:#4f8cff; }
-.ccw-empty { align-self:center; margin:auto; color:var(--dsw-alias-label-secondary,#9ca3af); font-size:13px; text-align:center; }
-.ccw-status { font-size:12px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; }
-.ccw-status.running, .ccw-status.starting { color:#f59e0b; }
-.ccw-status.error { color:var(--dsw-alias-state-error-primary,#dc2626); }
-.ccw-status.done, .ccw-status.stopped { color:#16a34a; }
+.ccw-pop-item:hover, .ccw-pop-item.sel { background:var(--ccw-selected); }
+.ccw-pop-kind { flex:none; font-size:10px; color:var(--ccw-text-3); border:1px solid var(--ccw-border-strong); border-radius:4px; padding:0 4px; }
+.ccw-pop-kind.skill { color:var(--ccw-accent); border-color:var(--ccw-accent); }
+.ccw-resize { height:6px; cursor:row-resize; margin:0 2px 6px; border-radius:3px; background:var(--ccw-border-strong); opacity:.5; }
+.ccw-resize:hover { opacity:1; background:var(--ccw-accent); }
+.ccw-empty { align-self:center; margin:auto; color:var(--ccw-text-3); font-size:13px; text-align:center; }
+.ccw-status { font-size:12px; color:var(--ccw-text-3); white-space:nowrap; }
+.ccw-status.running, .ccw-status.starting { color:var(--ccw-warn); }
+.ccw-status.error { color:var(--ccw-danger); }
+.ccw-status.done, .ccw-status.stopped { color:var(--ccw-success); }
 .ccw-modal { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); z-index:1100; }
-.ccw-modal-box { background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); border-radius:12px; box-shadow:0 16px 48px rgba(0,0,0,.2); padding:16px; min-width:320px; max-width:480px; max-height:80%; overflow-y:auto; }
+.ccw-modal-box { background:var(--ccw-surface); color:var(--ccw-text); border:1px solid var(--ccw-border-strong); border-radius:12px; box-shadow:0 16px 48px rgba(0,0,0,.2); padding:16px; min-width:320px; max-width:480px; max-height:80%; overflow-y:auto; }
 .ccw-modal-head { font-weight:600; font-size:14px; margin-bottom:10px; white-space:pre-wrap; }
 .ccw-modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
-.ccw-modal-log { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:rgba(0,0,0,.05); border-radius:6px; padding:8px; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin-top:8px; }
+.ccw-modal-log { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:var(--ccw-code); border-radius:6px; padding:8px; max-height:200px; overflow-y:auto; white-space:pre-wrap; margin-top:8px; }
 .ccw-main { position:relative; }
-.ccw-searchbar { flex:none; display:flex; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); background:var(--dsw-alias-bg-layer-1,#f9fafb); }
-.ccw-search-input { flex:1; min-width:0; padding:5px 9px; border:1px solid var(--dsw-alias-border-l2,#d1d5db); border-radius:6px; font:inherit; font-size:12px; background:var(--dsw-alias-bg-base,#fff); color:var(--dsw-alias-label-primary,#1f2937); }
-.ccw-search-input:focus { outline:none; border-color:#4f8cff; }
-.ccw-search-count { flex:none; font-size:11px; color:var(--dsw-alias-label-secondary,#9ca3af); white-space:nowrap; }
-.ccw-msg.ccw-search-hit { outline:2px solid #f59e0b; outline-offset:2px; box-shadow:0 0 0 5px rgba(245,158,11,.22); }
+.ccw-searchbar { flex:none; display:flex; align-items:center; gap:6px; padding:6px 10px; border-bottom:1px solid var(--ccw-border); background:var(--ccw-surface-2); }
+.ccw-search-input { flex:1; min-width:0; padding:5px 9px; border:1px solid var(--ccw-border-strong); border-radius:6px; font:inherit; font-size:12px; background:var(--ccw-surface); color:var(--ccw-text); }
+.ccw-search-input:focus { outline:none; border-color:var(--ccw-accent); }
+.ccw-search-count { flex:none; font-size:11px; color:var(--ccw-text-3); white-space:nowrap; }
+.ccw-msg.ccw-search-hit { outline:2px solid var(--ccw-warn); outline-offset:2px; box-shadow:0 0 0 5px var(--ccw-warn-soft); }
 .ccw-mark { background:rgba(250,204,21,.5); color:inherit; border-radius:2px; padding:0 1px; }
-.ccw-msg.user .ccw-mark { background:#fde047; color:#1f2937; }
-.ccw-turn { align-self:stretch; display:flex; align-items:center; gap:10px; color:var(--dsw-alias-label-secondary,#9ca3af); font-size:11px; margin:4px 0; white-space:nowrap; }
-.ccw-turn::before, .ccw-turn::after { content:""; flex:1; height:1px; background:var(--dsw-alias-border-l1,#e5e7eb); }
-.ccw-toc { position:absolute; top:8px; right:10px; width:min(280px, 62%); max-height:74%; display:flex; flex-direction:column; background:var(--dsw-alias-bg-base,#151517); color:var(--dsw-alias-label-primary,#1f2937); border:1px solid var(--dsw-alias-border-l2,#e5e7eb); border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,.28); z-index:50; overflow:hidden; }
-.ccw-toc-head { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--dsw-alias-border-l1,#e5e7eb); font-weight:600; font-size:12px; }
+.ccw-msg.user .ccw-mark { background:var(--ccw-mark); color:var(--ccw-text); }
+.ccw-turn { align-self:stretch; display:flex; align-items:center; gap:10px; color:var(--ccw-text-3); font-size:11px; margin:4px 0; white-space:nowrap; }
+.ccw-turn::before, .ccw-turn::after { content:""; flex:1; height:1px; background:var(--ccw-border); }
+.ccw-toc { position:absolute; top:8px; right:10px; width:min(280px, 62%); max-height:74%; display:flex; flex-direction:column; background:var(--ccw-surface); color:var(--ccw-text); border:1px solid var(--ccw-border-strong); border-radius:10px; box-shadow:0 12px 32px rgba(0,0,0,.28); z-index:50; overflow:hidden; }
+.ccw-toc-head { display:flex; align-items:center; gap:6px; padding:8px 10px; border-bottom:1px solid var(--ccw-border); font-weight:600; font-size:12px; }
 .ccw-toc-list { overflow-y:auto; padding:4px; }
 .ccw-toc-item { display:flex; align-items:baseline; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px; }
-.ccw-toc-item:hover { background:var(--dsw-alias-bg-layer-2,#f3f4f6); }
-.ccw-toc-n { flex:none; font-weight:600; color:#2563eb; min-width:46px; }
-.ccw-toc-time { flex:none; font-size:10px; color:var(--dsw-alias-label-secondary,#9ca3af); }
-.ccw-toc-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--dsw-alias-label-secondary,#9ca3af); }
+.ccw-toc-item:hover { background:var(--ccw-surface-3); }
+.ccw-toc-n { flex:none; font-weight:600; color:var(--ccw-accent); min-width:46px; }
+.ccw-toc-time { flex:none; font-size:10px; color:var(--ccw-text-3); }
+.ccw-toc-txt { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ccw-text-3); }
+/* ===== P0：窗口壳 / 图标 / 菜单 / 焦点 ===== */
+.ccw-i { width:16px; height:16px; flex:none; display:block; fill:none; stroke:currentColor; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
+.ccw-iconbtn { display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--ccw-text-3); cursor:pointer; transition:background .12s, color .12s; }
+.ccw-iconbtn:hover { background:var(--ccw-surface-3); color:var(--ccw-text); }
+.ccw-iconbtn.active { background:var(--ccw-accent-soft); color:var(--ccw-accent); }
+.ccw-iconbtn:disabled { opacity:.4; cursor:not-allowed; }
+
+.ccw-titlebar { height:42px; padding:0 8px 0 14px; gap:8px; background:var(--ccw-bg); }
+.ccw-titlebar .ccw-iconbtn { cursor:pointer; }
+.ccw-brand { font-size:12.5px; font-weight:640; letter-spacing:.005em; }
+.ccw-logo { color:var(--ccw-accent); }
+.ccw-conn { display:inline-flex; align-items:center; gap:6px; margin-left:4px; font-size:11px; color:var(--ccw-text-3); }
+.ccw-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--ccw-text-3); flex:none; }
+.ccw-dot.ok { background:var(--ccw-success); }
+.ccw-dot.run { background:var(--ccw-warn); }
+.ccw-dot.acc { background:var(--ccw-accent); }
+.ccw-dot.err { background:var(--ccw-danger); }
+
+.ccw-topbar { height:46px; padding:0 10px 0 16px; gap:10px; background:var(--ccw-surface); min-width:0; }
+.ccw-crumb { flex:0 1 auto; }
+.ccw-status, .ccw-meta, .ccw-model, .ccw-iconbtn, .ccw-menu-wrap { flex:none; }
+.ccw-crumb { display:flex; align-items:center; gap:6px; min-width:0; font-size:12.5px; color:var(--ccw-text-3); }
+.ccw-crumb .ccw-i { color:var(--ccw-text-3); }
+.ccw-crumb b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:340px; color:var(--ccw-text); font-weight:600; }
+.ccw-crumb-ws { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px; }
+.ccw-meta { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10.5px; color:var(--ccw-text-3); white-space:nowrap; max-width:130px; overflow:hidden; text-overflow:ellipsis; }
+.ccw-model { height:26px; max-width:132px; padding:0 24px 0 8px; appearance:none; -webkit-appearance:none; background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A877E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 7px center; border:1px solid var(--ccw-border); border-radius:6px; background:var(--ccw-surface); color:var(--ccw-text-2); font:inherit; font-size:11px; cursor:pointer; }
+.ccw-model:hover { border-color:var(--ccw-border-strong); color:var(--ccw-text); }
+.ccw-status { display:inline-flex; align-items:center; gap:6px; font-size:11px; color:var(--ccw-text-3); white-space:nowrap; }
+.ccw-status.running .ccw-dot, .ccw-status.starting .ccw-dot { background:var(--ccw-warn); }
+.ccw-status.done .ccw-dot, .ccw-status.stopped .ccw-dot { background:var(--ccw-success); }
+.ccw-status.error .ccw-dot { background:var(--ccw-danger); }
+
+.ccw-menu-wrap { position:relative; display:inline-flex; }
+.ccw-menu { position:absolute; top:34px; right:0; min-width:210px; padding:4px; background:var(--ccw-surface); border:1px solid var(--ccw-border); border-radius:10px; box-shadow:0 18px 40px -18px rgba(20,18,14,.45); z-index:80; }
+.ccw-menu-item { display:flex; align-items:center; gap:8px; width:100%; height:32px; padding:0 9px; border:0; border-radius:6px; background:transparent; color:var(--ccw-text-2); font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+.ccw-menu-item:hover { background:var(--ccw-surface-2); color:var(--ccw-text); }
+.ccw-menu-item:disabled { opacity:.4; cursor:not-allowed; }
+.ccw-menu-item .ccw-i { width:14px; height:14px; color:var(--ccw-text-3); }
+.ccw-menu-sep { height:1px; margin:4px 2px; background:var(--ccw-border); }
+.ccw-narrow .ccw-topbar { padding:0 8px 0 12px; gap:6px; }
+.ccw-narrow .ccw-meta, .ccw-narrow .ccw-crumb-ws { display:none; }
+.ccw-narrow .ccw-crumb b { max-width:190px; }
+.ccw-narrow .ccw-model { max-width:104px; }
+
+.ccw-sidebar { background:var(--ccw-surface-2); padding:10px 8px; }
+.ccw-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:30px; padding:0 11px; border-radius:8px; font-size:12px; transition:background .12s, border-color .12s, color .12s; }
+.ccw-btn .ccw-i { width:14px; height:14px; }
+.ccw-btn.small { height:26px; padding:0 8px; font-size:11.5px; border-radius:6px; }
+.ccw-btn.primary { color:var(--ccw-accent-fg); }
+.ccw-btn.primary:hover { background:var(--ccw-accent-hover); border-color:var(--ccw-accent-hover); }
+.ccw-btn.danger { background:var(--ccw-danger); border-color:var(--ccw-danger); color:var(--ccw-danger-fg); }
+.ccw-btn.danger:hover { background:var(--ccw-danger); opacity:.9; }
+.ccw-input { min-height:44px; padding:9px 11px; border-radius:10px; font-size:13.5px; transition:border-color .12s, box-shadow .12s; }
+.ccw-input:focus { border-color:var(--ccw-accent); box-shadow:0 0 0 3px var(--ccw-accent-soft); }
+.ccw-footer { padding:8px 12px 12px; background:var(--ccw-surface); }
+.ccw-msg.user { background:var(--ccw-accent-soft); color:var(--ccw-text); }
+.ccw-msg.tool { background:var(--ccw-surface-2); color:var(--ccw-text-2); opacity:1; }
+.ccw-ws-chev { color:var(--ccw-text-3); transition:transform .16s ease; }
+.ccw-ws-chev.open { transform:rotate(90deg); }
+.ccw-ws-head { height:28px; padding:0 6px 0 4px; border-radius:6px; }
+.ccw-ws-head:hover { background:var(--ccw-surface-3); }
+.ccw-ws-head.current { background:var(--ccw-selected); }
+.ccw-srow { height:30px; border-radius:7px; position:relative; }
+.ccw-sdot { background:var(--ccw-border-strong); }
+.ccw-sdot.run { background:var(--ccw-warn); }
+.ccw-sdot.acc { background:var(--ccw-accent); }
+.ccw-icbtn { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; padding:0; border:0; border-radius:5px; background:transparent; color:var(--ccw-text-3); cursor:pointer; }
+.ccw-icbtn:hover { background:var(--ccw-surface-3); color:var(--ccw-text); }
+.ccw-srow:hover { background:var(--ccw-surface-3); }
+.ccw-srow .ccw-sdim { transition:opacity .12s; }
+.ccw-srow:hover .ccw-sdim { opacity:0; }
+.ccw-srow-actions { position:absolute; right:6px; top:50%; transform:translateY(-50%); margin:0; padding:0 2px 0 10px; background:inherit; border-radius:6px; display:inline-flex; gap:2px; opacity:0; pointer-events:none; transition:opacity .12s; }
+.ccw-srow:hover .ccw-srow-actions, .ccw-srow:focus-within .ccw-srow-actions { opacity:1; pointer-events:auto; }
+.ccw-ws-head .ccw-icbtn { opacity:0; pointer-events:none; }
+.ccw-ws-head:hover .ccw-icbtn, .ccw-ws-head:focus-within .ccw-icbtn { opacity:1; pointer-events:auto; }
+.ccw-srow.active { background:var(--ccw-surface); box-shadow:inset 2px 0 0 var(--ccw-accent); }
+.ccw-searchbar { background:var(--ccw-surface-2); }
+.ccw-toast.ok, .ccw-toast.err { background:var(--ccw-toast-bg); color:var(--ccw-toast-fg); }
+.ccw-toast.ok { border-left:3px solid var(--ccw-success); }
+.ccw-toast.err { border-left:3px solid var(--ccw-danger); }
+.ccw-tool-icon { display:inline-block; vertical-align:-3px; margin-right:4px; color:var(--ccw-text-3); }
+.ccw-tool-name { font-weight:500; color:var(--ccw-text-2); }
+.ccw-chev { display:inline-block; vertical-align:-2px; margin-right:3px; transition:transform .16s ease; }
+.ccw-chev.open { transform:rotate(90deg); }
+.ccw-think-chev { display:inline-flex; align-items:center; }
+.ccw-think-chev .ccw-i { transition:transform .16s ease; }
+.ccw-think-toggle.open .ccw-think-chev .ccw-i { transform:rotate(90deg); }
+.ccw-result-icon { display:inline-block; vertical-align:-2px; margin-right:5px; }
+.ccw-ctl-icon { display:inline-block; vertical-align:-3px; margin-right:5px; color:var(--ccw-warn); }
+.ccw-sub-head { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.ccw-queue-icon { display:inline-block; vertical-align:-2px; margin-right:4px; color:var(--ccw-text-3); }
+.ccw-updated { display:flex; align-items:center; gap:5px; }
+.ccw-modal-head { display:flex; align-items:center; gap:7px; }
+.ccw-toolstate { display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ccw-text-3); }
+.ccw-toolstate .ccw-dot { width:5px; height:5px; }
+.ccw-toolstate.run .ccw-dot { background:var(--ccw-warn); }
+.ccw-toolstate.done .ccw-dot { background:var(--ccw-success); }
+.ccw-msgs, .ccw-sidebar, .ccw-toc-list, .ccw-pop-list { scrollbar-width:thin; scrollbar-color:var(--ccw-border-strong) transparent; }
+.ccw-msgs::-webkit-scrollbar, .ccw-sidebar::-webkit-scrollbar, .ccw-toc-list::-webkit-scrollbar { width:10px; }
+.ccw-msgs::-webkit-scrollbar-thumb, .ccw-sidebar::-webkit-scrollbar-thumb, .ccw-toc-list::-webkit-scrollbar-thumb { background:var(--ccw-border-strong); border:3px solid transparent; background-clip:padding-box; border-radius:8px; }
+.ccw :focus-visible { outline:2px solid var(--ccw-accent); outline-offset:2px; }
+.ccw input:focus-visible, .ccw textarea:focus-visible, .ccw select:focus-visible { outline:2px solid var(--ccw-accent); outline-offset:1px; }
+.ccw-search-hit { outline:2px solid var(--ccw-warn); outline-offset:2px; }
+.ccw-mark { background:var(--ccw-mark); color:var(--ccw-mark-fg); }
+
+/* ===== P1：文档流消息 / 统一工具卡 / 输入区 / 侧栏密度 ===== */
+.ccw-msgs { padding:18px 26px 22px; gap:16px; }
+.ccw-turnblk { width:100%; align-self:stretch; display:flex; flex-direction:column; }
+.ccw-turnbody { width:100%; display:flex; flex-direction:column; gap:16px; }
+.ccw-turn { position:sticky; top:-18px; z-index:2; display:flex; align-items:center; gap:8px; align-self:stretch; width:100%; max-width:100%; margin:0 0 6px; padding:4px 0 8px; background:linear-gradient(var(--ccw-bg) 70%, transparent); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; letter-spacing:.07em; color:var(--ccw-text-3); white-space:nowrap; }
+.ccw-turn::before { content:none; }
+.ccw-turn::after { content:""; width:38px; height:1px; flex:none; background:var(--ccw-border); }
+.ccw-msg { width:100%; max-width:100%; padding:0; border-radius:0; background:transparent; font-size:13.5px; line-height:1.7; }
+.ccw-msg.user { align-self:flex-start; background:var(--ccw-surface-2); color:var(--ccw-text); border-left:2px solid var(--ccw-accent); border-radius:0 8px 8px 0; padding:10px 13px 8px; white-space:normal; }
+.ccw-user-text { white-space:pre-wrap; word-break:break-word; line-height:1.62; }
+.ccw-user-images { display:flex; align-items:center; gap:4px; margin-top:6px; font-size:11px; color:var(--ccw-text-3); }
+.ccw-user-foot { display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:5px; min-height:16px; }
+.ccw-msg.user .ccw-umsg-edit { float:none; margin:0; padding:1px 3px; background:transparent; opacity:.55; display:inline-flex; align-items:center; gap:4px; font-size:10.5px; }
+.ccw-msg.user .ccw-umsg-edit:hover { opacity:1; background:var(--ccw-surface-3); }
+.ccw-msg.assistant { align-self:flex-start; background:transparent; padding:0; }
+.ccw-msg.assistant .ccw-md { color:var(--ccw-text); }
+.ccw-msgtime-in { font-size:10.5px; color:var(--ccw-text-3); opacity:1; margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.ccw-thinking { border-left:2px solid var(--ccw-border-strong); padding:1px 0 1px 11px; margin:0 0 10px; font-size:12.5px; line-height:1.65; color:var(--ccw-text-3); }
+.ccw-think-toggle { margin-bottom:7px; padding:2px 6px 2px 3px; border-radius:5px; font-size:11.5px; }
+.ccw-think-toggle:hover { background:var(--ccw-surface-2); }
+.ccw-md { line-height:1.7; font-size:13.5px; }
+.ccw-md .ccw-p { margin:0 0 10px; }
+.ccw-md .ccw-p:last-child { margin-bottom:0; }
+.ccw-md .ccw-h { margin:14px 0 6px; }
+.ccw-md .ccw-ul, .ccw-md .ccw-ol { margin:6px 0 10px; }
+.ccw-md .ccw-ul li, .ccw-md .ccw-ol li { margin:3px 0; }
+.ccw-md .ccw-bq { border-left:2px solid var(--ccw-border-strong); padding:2px 12px; margin:10px 0; color:var(--ccw-text-2); }
+.ccw-md .ccw-pre { background:var(--ccw-code); border:1px solid var(--ccw-border); border-radius:9px; padding:10px 12px; margin:8px 0 12px; font-size:12px; line-height:1.6; }
+.ccw-md .ccw-table th, .ccw-md .ccw-table td { border-color:var(--ccw-border); }
+.ccw-md a { color:var(--ccw-accent); text-decoration:none; }
+.ccw-md a:hover { text-decoration:underline; }
+
+/* 统一工具卡 */
+.ccw-msg.tool { align-self:flex-start; padding:0; background:transparent; opacity:1; font-size:13.5px; line-height:1.6; }
+.ccw-tool-card { border:1px solid var(--ccw-border); border-radius:10px; background:var(--ccw-surface); overflow:hidden; }
+.ccw-tool-card.running { border-color:var(--ccw-border-strong); }
+.ccw-tool-card.err { border-color:var(--ccw-danger); }
+.ccw-tool-head { display:flex; align-items:center; gap:9px; width:100%; padding:8px 10px; border:0; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+.ccw-tool-head:hover { background:var(--ccw-surface-2); }
+.ccw-tool-head:disabled { cursor:default; opacity:1; color:inherit; }
+.ccw-tool-head:disabled:hover { background:transparent; }
+.ccw-tool-glyph { flex:none; width:24px; height:24px; border-radius:6px; background:var(--ccw-surface-2); color:var(--ccw-text-3); display:inline-flex; align-items:center; justify-content:center; }
+.ccw-tool-card[data-kind="sub"] .ccw-tool-glyph { background:var(--ccw-accent-soft); color:var(--ccw-accent); }
+.ccw-tool-title { flex:1; min-width:0; display:flex; align-items:center; gap:7px; overflow:hidden; }
+.ccw-tool-name { flex:none; font-size:12.5px; font-weight:600; color:var(--ccw-text); }
+.ccw-tool-target { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ccw-text-3); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; }
+.ccw-tool-target.ccw-tool-desc { font-family:inherit; font-size:12px; }
+.ccw-tool-head .ccw-sub-badge { flex:none; }
+.ccw-tool-head .ccw-toolstate { flex:none; }
+.ccw-tool-card .ccw-toolstate .ccw-dot { width:6px; height:6px; }
+.ccw-tool-card .ccw-toolstate.run .ccw-dot { background:var(--ccw-warn); animation:ccwPulse 1.2s ease-in-out infinite; }
+.ccw-tool-card .ccw-toolstate.done .ccw-dot { background:var(--ccw-success); }
+.ccw-tool-card .ccw-toolstate.err { color:var(--ccw-danger); }
+.ccw-tool-card .ccw-toolstate.err .ccw-dot { background:var(--ccw-danger); }
+.ccw-tool-size { flex:none; font-size:10px; color:var(--ccw-text-3); font-variant-numeric:tabular-nums; }
+.ccw-tool-time { flex:none; width:38px; text-align:right; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; color:var(--ccw-text-3); font-variant-numeric:tabular-nums; }
+.ccw-tool-head .ccw-chev { flex:none; margin:0; vertical-align:0; color:var(--ccw-text-3); }
+.ccw-tool-meta { padding:0 10px 7px 43px; margin-top:-2px; font-size:10.5px; color:var(--ccw-text-3); }
+.ccw-tool-body { border-top:1px solid var(--ccw-border); padding:9px 12px; background:var(--ccw-surface-2); }
+.ccw-tool-body.ccw-sub-body { margin:0; max-height:420px; overflow:auto; }
+.ccw-tool-body .ccw-md { font-size:12.5px; }
+.ccw-tool-body .ccw-md h1.ccw-h { font-size:15px; }
+.ccw-tool-body .ccw-md h2.ccw-h { font-size:14px; }
+.ccw-tool-body .ccw-md .ccw-h:first-child { margin-top:2px; }
+.ccw-tool-out { padding:0; margin:0; background:transparent; border:0; border-radius:0; font-size:11.5px; line-height:1.6; max-height:280px; overflow:auto; white-space:pre-wrap; }
+.ccw-tool-card.err .ccw-tool-body { background:var(--ccw-danger-soft); }
+.ccw-tool-card.err .ccw-tool-out { color:var(--ccw-danger); }
+
+/* 输入区 */
+.ccw-footer { padding:8px 12px 11px; }
+.ccw-resize { flex:none; width:100%; height:14px; margin:0 0 2px; display:flex; align-items:center; justify-content:center; cursor:row-resize; touch-action:none; background:transparent; opacity:1; border-radius:0; }
+.ccw-resize-grip { width:34px; height:4px; border-radius:2px; background:var(--ccw-border-strong); opacity:.55; transition:background .12s, opacity .12s; }
+.ccw-resize:hover .ccw-resize-grip, .ccw-resize:focus-visible .ccw-resize-grip { background:var(--ccw-accent); opacity:.9; }
+.ccw-resize:focus-visible { outline:none; }
+.ccw-composer { display:flex; flex-direction:column; border:1px solid var(--ccw-border-strong); border-radius:12px; background:var(--ccw-surface); transition:border-color .12s, box-shadow .12s; }
+.ccw-composer:focus-within { border-color:var(--ccw-accent); }
+.ccw-composer .ccw-input { flex:none; width:100%; min-height:46px; padding:12px 14px 4px; border:0; border-radius:12px 12px 0 0; background:transparent; box-shadow:none; }
+.ccw-composer .ccw-input:focus, .ccw-composer .ccw-input:focus-visible { border:0; box-shadow:none; outline:none; }
+.ccw-composer-bar { display:flex; align-items:center; gap:6px; padding:6px 8px 8px 10px; min-width:0; }
+.ccw-composer-hint { display:inline-flex; align-items:center; gap:3px; padding:3px 5px; border-radius:5px; font-size:10.5px; color:var(--ccw-text-3); }
+.ccw-composer .ccw-model { flex:none; height:26px; max-width:132px; appearance:none; -webkit-appearance:none; border:1px solid var(--ccw-border); border-radius:6px; background-color:var(--ccw-surface); background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A877E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 7px center; padding:0 22px 0 8px; font-size:11px; color:var(--ccw-text-2); cursor:pointer; }
+.ccw-composer .ccw-model:hover { border-color:var(--ccw-border-strong); color:var(--ccw-text); }
+.ccw-composer .ccw-model:focus, .ccw-composer .ccw-model:focus-visible { outline:none; border-color:var(--ccw-accent); box-shadow:0 0 0 3px var(--ccw-accent-soft); }
+.ccw-sendbtn { flex:none; width:28px; height:28px; border-radius:50%; border:1px solid var(--ccw-accent); background:var(--ccw-accent); color:var(--ccw-accent-fg); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:background .12s, border-color .12s; }
+.ccw-sendbtn:hover { background:var(--ccw-accent-hover); border-color:var(--ccw-accent-hover); }
+.ccw-stopbtn { flex:none; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ccw-border); background:var(--ccw-surface); color:var(--ccw-text-2); display:inline-flex; align-items:center; justify-content:center; gap:5px; font:inherit; font-size:11px; cursor:pointer; }
+.ccw-stopbtn:hover { border-color:var(--ccw-border-strong); color:var(--ccw-text); }
+.ccw-stop-sq { width:8px; height:8px; border-radius:2px; background:currentColor; flex:none; }
+
+/* 侧栏密度 */
+.ccw-sidebar { padding:10px 8px; }
+.ccw-ws { margin-bottom:4px; }
+.ccw-ws-head { height:30px; padding:0 6px; border-radius:6px; font-size:12px; }
+.ccw-ws-orphan .ccw-ws-name { color:var(--ccw-text-3); }
+.ccw-srow { height:32px; padding:0 6px 0 18px; gap:7px; }
+.ccw-stitle { font-size:12.5px; }
+.ccw-sdim { font-size:10.5px; padding-left:4px; }
+.ccw-searchbox { position:relative; margin-bottom:8px; }
+.ccw-searchbox-icon { position:absolute; left:8px; top:50%; transform:translateY(-50%); color:var(--ccw-text-3); pointer-events:none; }
+.ccw-searchbox .ccw-wsfilter { margin:0; height:30px; padding:0 8px 0 27px; border-radius:8px; font-size:11.5px; }
+.ccw-narrow .ccw-msgs { padding:14px 16px 18px; }
+.ccw-narrow .ccw-tool-target, .ccw-narrow .ccw-tool-size, .ccw-narrow .ccw-tool-time, .ccw-narrow .ccw-composer-hint { display:none; }
+.ccw-narrow .ccw-tool-card[data-kind="sub"] .ccw-toolstate { font-size:0; gap:0; }
+
+/* P2：窄面板侧栏抽屉 */
+.ccw-body { position:relative; }
+.ccw-scrim { position:absolute; inset:0; z-index:60; background:rgba(20,20,19,.18); animation:ccwFadeIn .15s ease-out; }
+.ccw-drawer-head { display:flex; align-items:center; justify-content:space-between; height:30px; padding:0 2px 0 6px; margin-bottom:6px; color:var(--ccw-text-2); font-size:12px; font-weight:600; }
+.ccw-drawer-mode .ccw-sidebar { position:absolute; left:0; top:0; bottom:0; z-index:70; height:100%; border-right:1px solid var(--ccw-border-strong); background:var(--ccw-surface); box-shadow:14px 0 36px rgba(0,0,0,.14); transform:translateX(-100%); visibility:hidden; transition:transform .18s ease, visibility .18s; }
+.ccw-drawer-mode.ccw-drawer-open .ccw-sidebar { transform:none; visibility:visible; }
+.ccw-drawer-mode .ccw-split { display:none; }
+.ccw-drawer-mode .ccw-crumb b { max-width:170px; }
+.ccw-narrow.ccw-drawer-mode .ccw-crumb b { max-width:128px; }
+
+/* P2：首帧骨架 */
+.ccw-skel { width:100%; max-width:100%; align-self:stretch; display:flex; flex-direction:column; gap:18px; padding:8px 0; }
+.ccw-skel-row { display:flex; gap:10px; align-items:flex-start; }
+.ccw-skel-avatar { width:24px; height:24px; border-radius:7px; background:var(--ccw-surface-3); flex:none; }
+.ccw-skel-lines { flex:1; display:flex; flex-direction:column; gap:7px; padding-top:2px; }
+.ccw-skel-line { height:10px; border-radius:5px; background:linear-gradient(90deg,var(--ccw-surface-2) 25%,var(--ccw-surface-3) 37%,var(--ccw-surface-2) 63%); background-size:400% 100%; animation:ccwShimmer 1.5s ease infinite; }
+.ccw-skel-side { display:flex; flex-direction:column; gap:8px; padding:8px 6px; }
+.ccw-skel-side-row { display:flex; align-items:center; gap:8px; height:24px; }
+.ccw[data-ccw-theme="dark"] .ccw-skel-line, .ccw[data-ccw-theme="dark"] .ccw-skel-bar { background:linear-gradient(90deg,var(--ccw-surface-3) 25%,var(--ccw-border-strong) 37%,var(--ccw-surface-3) 63%); background-size:400% 100%; }
+.ccw-skel-dot { width:6px; height:6px; border-radius:50%; background:var(--ccw-surface-3); flex:none; }
+.ccw-skel-bar { height:9px; border-radius:5px; background:linear-gradient(90deg,var(--ccw-surface-2) 25%,var(--ccw-surface-3) 37%,var(--ccw-surface-2) 63%); background-size:400% 100%; animation:ccwShimmer 1.5s ease infinite; }
+
+/* P2：空态 */
+.ccw-empty { align-self:center; margin:auto; max-width:360px; padding:24px 16px; text-align:center; color:var(--ccw-text-3); }
+.ccw-empty-mark { width:44px; height:44px; margin:0 auto 12px; border-radius:12px; background:var(--ccw-accent-soft); color:var(--ccw-accent); display:flex; align-items:center; justify-content:center; }
+.ccw-empty-title { font-size:14.5px; font-weight:600; color:var(--ccw-text); margin-bottom:6px; }
+.ccw-empty-desc { font-size:12px; line-height:1.7; color:var(--ccw-text-3); margin-bottom:14px; }
+.ccw-empty-actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+.ccw-empty-hint { margin-top:12px; font-size:10.5px; color:var(--ccw-text-3); opacity:.8; }
+
+/* P2：toast / dialog 动效 */
+.ccw-toast { display:flex; align-items:center; gap:7px; animation:ccwToastIn .18s ease-out; }
+.ccw-toast-ic { display:inline-flex; flex:none; opacity:.9; }
+.ccw-toast-text { min-width:0; line-height:1.5; }
+.ccw-modal { backdrop-filter:blur(2px); animation:ccwFadeIn .14s ease-out; }
+.ccw-modal-box { animation:ccwPopIn .16s cubic-bezier(.2,.8,.2,1); }
+
+@keyframes ccwShimmer { 0% { background-position:100% 0; } 100% { background-position:-100% 0; } }
+@keyframes ccwToastIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+@keyframes ccwFadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes ccwPopIn { from { opacity:0; transform:translateY(4px) scale(.98); } to { opacity:1; transform:none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ccw-scrim, .ccw-toast, .ccw-modal, .ccw-modal-box { animation:none; }
+  .ccw-skel-line, .ccw-skel-bar { animation:none; }
+  .ccw-drawer-mode .ccw-sidebar { transition:none; }
+}
+
+/* P3：输入区与正文列对齐，toast 上移到输入区之上 */
+.ccw-footer { position:relative; padding:10px 20px 16px; }
+.ccw-footer-inner { width:100%; max-width:none; min-width:0; }
+.ccw-narrow .ccw-footer { padding:10px 16px 14px; }
+.ccw-footer > .ccw-toasts { left:20px; bottom:calc(100% + 8px); transform:none; align-items:flex-start; width:max-content; max-width:calc(100% - 52px); }
+.ccw-narrow .ccw-footer > .ccw-toasts { left:16px; max-width:calc(100% - 32px); }
+
+/* P3：搜索条 */
+.ccw-searchbar { padding:7px 12px; gap:7px; background:var(--ccw-surface); border-bottom:1px solid var(--ccw-border); }
+.ccw-search-input { height:30px; padding:0 10px; border-radius:7px; font-size:12.5px; border-color:var(--ccw-border); background:var(--ccw-surface-2); transition:border-color .12s, box-shadow .12s, background .12s; }
+.ccw-search-input:focus { border-color:var(--ccw-accent); background:var(--ccw-surface); box-shadow:0 0 0 3px var(--ccw-accent-soft); }
+.ccw-search-count { font-variant-numeric:tabular-nums; }
+.ccw-searchbar .ccw-btn.small { height:28px; padding:0 8px; }
+.ccw-narrow .ccw-searchbar { padding:6px 8px; gap:4px; }
+.ccw-narrow .ccw-search-count { font-size:11px; }
+.ccw-msg.ccw-search-hit { outline:2px solid var(--ccw-accent); box-shadow:0 0 0 5px var(--ccw-accent-soft); }
+.ccw-mark { background:var(--ccw-accent-soft); color:var(--ccw-text); box-shadow:inset 0 -1px 0 var(--ccw-accent); }
+.ccw-msg.user .ccw-mark { background:var(--ccw-accent-soft); color:var(--ccw-text); }
+
+/* P3：轮次目录 */
+.ccw-toc { top:10px; right:12px; width:min(320px,78%); border-radius:12px; border-color:var(--ccw-border); box-shadow:0 18px 44px -22px rgba(20,18,14,.55); }
+.ccw-toc-head { height:38px; padding:0 10px; border-bottom-color:var(--ccw-border); }
+.ccw-toc-list { padding:4px 6px 6px; }
+.ccw-toc-item { width:100%; box-sizing:border-box; padding:7px 8px; border:0; border-radius:7px; background:transparent; color:inherit; font:inherit; font-size:12px; text-align:left; cursor:pointer; }
+.ccw-toc-item:hover { background:var(--ccw-surface-2); }
+.ccw-toc-n { color:var(--ccw-text-2); }
+.ccw-narrow .ccw-toc { top:8px; right:8px; width:min(300px,86%); }
+
+/* P3：指令弹层 */
+.ccw-pop-list { padding:4px; border-radius:10px; border-color:var(--ccw-border); background:var(--ccw-surface); box-shadow:0 14px 34px -22px rgba(20,18,14,.5); }
+.ccw-pop-item { padding:6px 8px; border-radius:7px; font-size:12.5px; }
+.ccw-pop-item.sel { background:var(--ccw-accent-soft); color:var(--ccw-text); }
+.ccw-pop-kind { background:var(--ccw-surface-2); border-color:var(--ccw-border); }
+.ccw-pop-kind.skill { background:var(--ccw-accent-soft); border-color:transparent; }
+
+/* P4：侧栏对齐示例（新会话 → 搜索 → 分组滚动 → 底部添加工作区） */
+.ccw-sidebar { display:flex; flex-direction:column; gap:10px; padding:12px 10px; overflow:hidden; }
+.ccw-drawer-head { margin-bottom:0; }
+.ccw-sidebar .ccw-btn.primary { flex:none; width:100%; height:32px; margin:0; font-size:12px; font-weight:620; }
+.ccw-searchbox { flex:none; margin:0; }
+.ccw-searchbox .ccw-wsfilter { padding:0 43px 0 27px; }
+.ccw-search-kbd { position:absolute; right:7px; top:50%; transform:translateY(-50%); padding:0 4px; border:1px solid var(--ccw-border); border-radius:4px; background:var(--ccw-surface); color:var(--ccw-text-3); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9px; line-height:15px; letter-spacing:0; pointer-events:none; }
+.ccw-searchbox .ccw-wsfilter { margin:0; }
+.ccw-sgroups { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:2px; scrollbar-width:thin; scrollbar-color:var(--ccw-border-strong) transparent; }
+.ccw-sgroups::-webkit-scrollbar { width:10px; }
+.ccw-sgroups::-webkit-scrollbar-thumb { background:var(--ccw-border-strong); border:3px solid transparent; background-clip:padding-box; border-radius:8px; }
+.ccw-ws { margin:0; }
+.ccw-ws-head { height:28px; padding:0 6px 0 4px; gap:6px; font-size:11.5px; font-weight:620; color:var(--ccw-text-2); }
+.ccw-ws-head.current { background:transparent; }
+.ccw-ws-name { min-width:0; }
+.ccw-ws-count { flex:none; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:10px; font-weight:400; color:var(--ccw-text-3); }
+.ccw-ws-head .ccw-icbtn { width:22px; height:22px; }
+.ccw-srow { height:32px; padding:0 8px 0 10px; gap:8px; border-radius:8px; font-size:12px; color:var(--ccw-text-2); }
+.ccw-srow.active { color:var(--ccw-text); }
+.ccw-srow.active .ccw-stitle { font-weight:560; }
+.ccw-sdot { width:6px; height:6px; }
+.ccw-sdim { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:9.5px; }
+.ccw-srow-actions .ccw-icbtn { width:22px; height:22px; }
+.ccw-sidefoot { flex:none; margin-top:auto; padding-top:6px; border-top:1px solid var(--ccw-border); }
+.ccw-ghostbtn { display:flex; align-items:center; gap:7px; width:100%; height:30px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--ccw-text-3); font:inherit; font-size:11.5px; cursor:pointer; text-align:left; }
+.ccw-ghostbtn:hover { background:var(--ccw-surface-3); color:var(--ccw-text-2); }
+.ccw-ghostbtn:disabled { opacity:.55; cursor:default; }
+.ccw-ghostbtn .ccw-i { width:14px; height:14px; }
+
+/* P5：输入区与底部工具栏保持同一块表面，不出现内部分割线 */
+.ccw-composer { background:var(--ccw-surface); }
+.ccw-composer .ccw-input,
+.ccw-composer .ccw-input:focus,
+.ccw-composer .ccw-input:focus-visible {
+  display:block;
+  border:0 !important;
+  outline:0 !important;
+  outline-offset:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+}
+.ccw-composer-bar { border-top:0 !important; border-bottom:0 !important; background:transparent; }
+
+/* P3：触屏上常显会话操作 */
+@media (hover: none) {
+  .ccw-srow-actions { opacity:1; pointer-events:auto; background:transparent; }
+}
+
 `;
 
     let cssInjected = false;
@@ -442,6 +820,7 @@ window.__ModuleLoader__.load({
           const b = document.body;
           const attr = (de && (de.getAttribute("data-dsw-theme") || de.getAttribute("data-theme"))) ||
                        (b && (b.getAttribute("data-dsw-theme") || b.getAttribute("data-theme"))) || "";
+          if (de && de.classList.contains("theme-with-dark-background")) return true;
           if (/dark/i.test(attr)) return true;
           if (/light/i.test(attr)) return false;
           if ((de && de.classList.contains("dark")) || (b && b.classList.contains("dark"))) return true;
@@ -459,6 +838,27 @@ window.__ModuleLoader__.load({
         if (typeof window !== "undefined" && window.matchMedia) return window.matchMedia("(prefers-color-scheme: dark)").matches;
       } catch (e) {}
       return false;
+    }
+
+    // 明暗：跟随 DSH 的 data 属性 / class 变化，切换面板自己的令牌
+    function useCcwTheme() {
+      const [dark, setDark] = React.useState(function () { return detectDark(); });
+      React.useEffect(function () {
+        function sync() { setDark(detectDark()); }
+        sync();
+        if (typeof MutationObserver === "undefined") return;
+        const mo = new MutationObserver(sync);
+        const opts = { attributes: true, attributeFilter: ["class", "data-theme", "data-dsw-theme", "style"] };
+        mo.observe(document.documentElement, opts);
+        if (document.body) mo.observe(document.body, opts);
+        const mq = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+        if (mq && mq.addEventListener) mq.addEventListener("change", sync);
+        return function () {
+          mo.disconnect();
+          if (mq && mq.removeEventListener) mq.removeEventListener("change", sync);
+        };
+      }, []);
+      return dark;
     }
 
     function loadMermaid() {
@@ -540,7 +940,7 @@ window.__ModuleLoader__.load({
       el.textContent = "";
       const msg = document.createElement("div");
       msg.className = "ccw-mermaid-err";
-      msg.textContent = "⚠ Mermaid 渲染失败：" + (err && err.message ? err.message : String(err));
+      msg.textContent = "Mermaid 渲染失败：" + (err && err.message ? err.message : String(err));
       el.appendChild(msg);
 
       const pre = document.createElement("pre");
@@ -634,11 +1034,66 @@ window.__ModuleLoader__.load({
         className: "ccw-logo",
         viewBox: "0 0 24 24",
         width: size, height: size,
-        fill: "#D97757",
+        fill: "currentColor",
         "aria-hidden": "true",
       },
         React.createElement("path", { d: "M12 1.5 L14.5 9.5 L22.5 12 L14.5 14.5 L12 22.5 L9.5 14.5 L1.5 12 L9.5 9.5 Z" }),
       );
+    }
+
+
+    // ------------------------------------------------------------------
+    // 图标：内联 SVG（24 网格，1.75 描边），替代 emoji / Unicode 符号
+    // ------------------------------------------------------------------
+    const CCW_ICONS = {
+      minus: [["path", { d: "M5 12h14" }]],
+      x: [["path", { d: "M6 6l12 12M18 6L6 18" }]],
+      square: [["rect", { x: 5, y: 5, width: 14, height: 14, rx: 2 }]],
+      restore: [["rect", { x: 8.5, y: 8.5, width: 11, height: 11, rx: 2 }], ["path", { d: "M5.5 15.5H5a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v.5" }]],
+      search: [["circle", { cx: 11, cy: 11, r: 7 }], ["path", { d: "M16.5 16.5L21 21" }]],
+      list: [["path", { d: "M8 6h13M8 12h13M8 18h13" }],
+        ["circle", { cx: 3.5, cy: 6, r: 1, fill: "currentColor", stroke: "none" }],
+        ["circle", { cx: 3.5, cy: 12, r: 1, fill: "currentColor", stroke: "none" }],
+        ["circle", { cx: 3.5, cy: 18, r: 1, fill: "currentColor", stroke: "none" }]],
+      more: [["circle", { cx: 5, cy: 12, r: 1.6, fill: "currentColor", stroke: "none" }],
+        ["circle", { cx: 12, cy: 12, r: 1.6, fill: "currentColor", stroke: "none" }],
+        ["circle", { cx: 19, cy: 12, r: 1.6, fill: "currentColor", stroke: "none" }]],
+      "chev-r": [["path", { d: "M9 6l6 6-6 6" }]],
+      "chev-d": [["path", { d: "M6 9l6 6 6-6" }]],
+      plus: [["path", { d: "M12 5v14M5 12h14" }]],
+      pencil: [["path", { d: "M4 20h4L19 9l-4-4L4 16v4z" }], ["path", { d: "M13.5 6.5l4 4" }]],
+      trash: [["path", { d: "M4 7h16M9 7V4h6v3M6.5 7l1 13h9l1-13" }]],
+      refresh: [["path", { d: "M20 12a8 8 0 1 1-2.4-5.7" }], ["path", { d: "M20 4v5h-5" }]],
+      update: [["path", { d: "M12 3.5v10M7.5 9l4.5 4.5L16.5 9" }], ["path", { d: "M4.5 19.5h15" }]],
+      stop: [["rect", { x: 6.5, y: 6.5, width: 11, height: 11, rx: 2.2 }]],
+      "arrow-up": [["path", { d: "M12 19V5M6 11l6-6 6 6" }]],
+      "arrow-down": [["path", { d: "M12 5v14M6 13l6 6 6-6" }]],
+      check: [["path", { d: "M5 12.5l4.5 4.5L19 6.5" }]],
+      alert: [["path", { d: "M12 3.5L2.5 20.5h19L12 3.5z" }], ["path", { d: "M12 9.5v4.5M12 17.2v.1" }]],
+      image: [["rect", { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ["circle", { cx: 8.5, cy: 9.5, r: 1.5 }], ["path", { d: "M21 15l-5-5L5 21" }]],
+      folder: [["path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" }]],
+      "panel-left": [["rect", { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ["path", { d: "M9 4v16" }]],
+      bot: [["rect", { x: 4, y: 8, width: 16, height: 12, rx: 3 }], ["path", { d: "M12 4v4M8.5 14h.1M15.5 14h.1M9 17.5h6" }]],
+      file: [["path", { d: "M6 3h8l4 4v14H6V3z" }], ["path", { d: "M14 3v4h4" }]],
+      clock: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M12 7v5l3 2" }]],
+      slash: [["path", { d: "M15 4L9 20" }]],
+      info: [["circle", { cx: 12, cy: 12, r: 9 }], ["path", { d: "M12 11v5.5M12 7.6v.1" }]],
+      eraser: [["path", { d: "M4 20h16" }], ["path", { d: "M8.5 20L4 15.5 14.5 5l5 5L9.5 20z" }]],
+      terminal: [["rect", { x: 3, y: 5, width: 18, height: 14, rx: 2 }], ["path", { d: "M7.5 9.5l3 2.5-3 2.5M13.5 15h4" }]],
+      lock: [["rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }], ["path", { d: "M8 11V8a4 4 0 0 1 8 0v3" }]],
+    };
+
+    function CcwIcon(props) {
+      const size = (props && props.size) || 16;
+      const nodes = CCW_ICONS[props && props.name] || [];
+      return React.createElement("svg", {
+        className: "ccw-i" + (props && props.className ? " " + props.className : ""),
+        viewBox: "0 0 24 24",
+        width: size, height: size,
+        "aria-hidden": "true", focusable: "false",
+      }, nodes.map(function (n, i) {
+        return React.createElement(n[0], Object.assign({ key: i }, n[1]));
+      }));
     }
 
     // ------------------------------------------------------------------
@@ -726,7 +1181,7 @@ window.__ModuleLoader__.load({
       const tooLong = String(inputText).length > 2000;
       return React.createElement("div", { className: "ccw-msg ccw-ctl" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
         React.createElement("div", { className: "ccw-ctl-head" },
-          "🔐 ", highlightNodes(msg.displayName || msg.toolName || "工具", query), " 请求授权"),
+          React.createElement(CcwIcon, { name: "lock", size: 14, className: "ccw-ctl-icon" }), highlightNodes(msg.displayName || msg.toolName || "工具", query), " 请求授权"),
         inputText ? React.createElement("div", { className: "ccw-ctl-input" },
           highlightNodes(expanded ? String(inputText) : String(inputText).slice(0, 2000), query),
           tooLong ? React.createElement("button", {
@@ -764,6 +1219,17 @@ window.__ModuleLoader__.load({
         && a.dataIndex === b.dataIndex
         && a.query === b.query;
     }
+    // 工具卡副标题：从 input 里挑一个最能说明“做了什么”的字段（纯展示，不改数据）
+    function toolInputHint(msg) {
+      const input = msg && msg.input;
+      if (!input || typeof input !== "object") return "";
+      const keys = ["file_path", "notebook_path", "path", "command", "pattern", "url", "query", "description"];
+      for (let i = 0; i < keys.length; i++) {
+        const v = input[keys[i]];
+        if (typeof v === "string" && v.trim()) return v.replace(/\s+/g, " ").trim();
+      }
+      return "";
+    }
     const MessageView = React.memo(function MessageView({ msg, live, onFill, hl, dataIndex, query }) {
       const [thinkingOpen, setThinkingOpen] = React.useState(false);
       const [toolOpen, setToolOpen] = React.useState(false);
@@ -782,13 +1248,15 @@ window.__ModuleLoader__.load({
       const ts = msg.ts ? formatClock(msg.ts) : "";
       if (msg.role === "user") {
         return React.createElement("div", { className: "ccw-msg user" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
-          highlightNodes(msg.text, query),
-          msg.images && msg.images.length ? React.createElement("div", { style: { opacity: .8, marginTop: 2 } }, "🖼 图片 ×" + msg.images.length) : null,
-          onFill ? React.createElement("button", {
-            type: "button", className: "ccw-umsg-edit", title: "填入输入框重新编辑",
-            onClick: function (e) { e.stopPropagation(); onFill(msg.text || ""); },
-          }, "✎") : null,
-          ts ? React.createElement("div", { className: "ccw-msgtime-in" }, ts) : null,
+          React.createElement("div", { className: "ccw-user-text" }, highlightNodes(msg.text, query)),
+          msg.images && msg.images.length ? React.createElement("div", { className: "ccw-user-images" }, React.createElement(CcwIcon, { name: "image", size: 12 }), "图片 ×" + msg.images.length) : null,
+          (onFill || ts) ? React.createElement("div", { className: "ccw-user-foot" },
+            onFill ? React.createElement("button", {
+              type: "button", className: "ccw-umsg-edit", title: "填入输入框重新编辑", "aria-label": "填入输入框重新编辑",
+              onClick: function (e) { e.stopPropagation(); onFill(msg.text || ""); },
+            }, React.createElement(CcwIcon, { name: "pencil", size: 11 })) : null,
+            ts ? React.createElement("span", { className: "ccw-msgtime-in" }, ts) : null,
+          ) : null,
         );
       }
       if (msg.role === "assistant") {
@@ -801,7 +1269,7 @@ window.__ModuleLoader__.load({
             onClick: function () { setThinkingOpen(function (v) { return !v; }); },
             title: thinkingOpen ? "收起思考过程" : "展开思考过程",
           },
-            React.createElement("span", { className: "ccw-think-chev" }, thinkingOpen ? "▾" : "▸"),
+            React.createElement("span", { className: "ccw-think-chev" }, React.createElement(CcwIcon, { name: "chev-r", size: 11 })),
             React.createElement("span", { className: "ccw-think-label" }, thinkingActive ? "思考中…" : "思考过程"),
             thinkingActive ? React.createElement("span", { className: "ccw-think-pulse" }) : null,
           ) : null,
@@ -818,7 +1286,7 @@ window.__ModuleLoader__.load({
                 const code = wrap ? wrap.querySelector("pre code") : null;
                 if (code) {
                   copyText(code.textContent || "").then(function (ok) {
-                    t.textContent = ok ? "已复制 ✓" : "复制失败";
+                    t.textContent = ok ? "已复制" : "复制失败";
                     setTimeout(function () { t.textContent = "复制"; }, 1500);
                   });
                 }
@@ -833,50 +1301,55 @@ window.__ModuleLoader__.load({
         const r = hasResult ? String(msg.result) : "";
         const shown = r.length > 20000 ? r.slice(0, 20000) + "\n…（过长已截断）" : r;
         const sizeHint = hasResult ? formatChars(r.length) : "";
-        const snippet = hasResult ? r.replace(/\s+/g, " ").trim() : "";
-        const foldHint = snippet.length > 80 ? snippet.slice(0, 80) + "…" : snippet;
-        // 子代理（Agent/Task）：渲染成紧凑卡片，报告默认折叠，展开后用 Markdown 呈现
-        if (msg.sub) {
-          const metaBits = [];
-          let metaTitle = "";
-          if (msg.meta) {
-            if (msg.meta.tokens != null) { metaBits.push(formatTokensCompact(msg.meta.tokens) + " tokens"); metaTitle = formatTokensFull(msg.meta.tokens); }
-            if (msg.meta.durationMs != null) metaBits.push(formatDuration(msg.meta.durationMs));
-            if (msg.meta.toolUses != null) metaBits.push(msg.meta.toolUses + " 次工具调用");
-          }
-          const subMd = hasResult && toolOpen ? renderMarkdown(shown) : "";
-          const subHtml = subMd && query ? highlightHtml(subMd, query) : subMd;
-          return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
-            React.createElement("div", { className: "ccw-sub-head" },
-              "🤖 子代理",
-              msg.sub.type ? React.createElement("span", { className: "ccw-sub-badge" }, msg.sub.type) : null,
-              msg.sub.description ? React.createElement("span", { className: "ccw-dim" }, msg.sub.description) : null,
-              React.createElement("span", { className: "ccw-dim" }, msg.status === "running" ? "（运行中…）" : " ✓"),
-            ),
-            metaBits.length ? React.createElement("div", { className: "ccw-sub-meta", title: metaTitle || undefined }, metaBits.join(" · ")) : null,
-            hasResult ? React.createElement("button", {
-              type: "button", className: "ccw-think-toggle", style: { marginTop: 4 },
-              onClick: function () { setToolOpen(function (v) { return !v; }); },
-              title: toolOpen ? "收起子代理报告" : "查看子代理报告",
-            }, toolOpen ? "▾ 收起报告" : "▸ 查看报告（" + sizeHint + "）") : null,
-            subHtml ? React.createElement("div", { className: "ccw-md ccw-sub-body", dangerouslySetInnerHTML: { __html: subHtml } }) : null,
-            hasResult && !toolOpen ? React.createElement("div", { className: "ccw-tool-fold", title: "报告已折叠（" + sizeHint + "），点击上方「查看报告」展开" }, "已折叠 " + sizeHint + "：" + foldHint) : null,
-          );
+        const isSub = !!msg.sub;
+        const st = msg.isError ? { cls: "err", text: "失败" } : (msg.status === "running" ? { cls: "run", text: "运行中" } : { cls: "done", text: "已完成" });
+        const target = isSub ? (msg.sub.description || "") : toolInputHint(msg);
+        const metaBits = [];
+        let metaTitle = "";
+        if (isSub && msg.meta) {
+          if (msg.meta.tokens != null) { metaBits.push(formatTokensCompact(msg.meta.tokens) + " tokens"); metaTitle = formatTokensFull(msg.meta.tokens); }
+          if (msg.meta.durationMs != null) metaBits.push(formatDuration(msg.meta.durationMs));
+          if (msg.meta.toolUses != null) metaBits.push(msg.meta.toolUses + " 次工具调用");
         }
-        return React.createElement("div", { className: "ccw-msg tool" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
-          "🛠 ", highlightNodes(msg.name || "工具", query), (msg.status === "running" ? "（运行中…）" : " ✓"),
-          hasResult ? React.createElement("button", {
-            type: "button", className: "ccw-think-toggle", style: { marginLeft: 6, marginBottom: 0 },
-            onClick: function () { setToolOpen(function (v) { return !v; }); },
-            title: toolOpen ? "收起输出" : "查看完整输出",
-          }, toolOpen ? "▾ 收起输出" : "▸ 查看输出（" + sizeHint + "）") : null,
-          hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-out" }, highlightNodes(shown, query)) : null,
-          hasResult && !toolOpen ? React.createElement("div", { className: "ccw-tool-fold", title: "输出已折叠（" + sizeHint + "），点击上方「查看输出」展开" }, "已折叠 " + sizeHint + "：" + foldHint) : null,
+        const subMd = isSub && hasResult && toolOpen ? renderMarkdown(shown) : "";
+        const subHtml = subMd && query ? highlightHtml(subMd, query) : subMd;
+        const toggle = function () { if (hasResult) setToolOpen(function (v) { return !v; }); };
+        return React.createElement("div", { className: "ccw-msg tool" + (isSub ? " sub" : "") + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+          React.createElement("div", {
+            className: "ccw-tool-card" + (msg.status === "running" ? " running" : "") + (msg.isError ? " err" : "") + (toolOpen ? " open" : ""),
+            "data-kind": isSub ? "sub" : "tool",
+          },
+            React.createElement("button", {
+              type: "button",
+              className: "ccw-tool-head",
+              onClick: toggle,
+              disabled: !hasResult,
+              "aria-expanded": hasResult ? toolOpen : undefined,
+              title: hasResult ? (toolOpen ? "收起" + (isSub ? "报告" : "输出") : "展开" + (isSub ? "报告" : "输出")) : undefined,
+            },
+              React.createElement("span", { className: "ccw-tool-glyph" }, React.createElement(CcwIcon, { name: isSub ? "bot" : "terminal", size: 14 })),
+              React.createElement("span", { className: "ccw-tool-title" },
+                React.createElement("span", { className: "ccw-tool-name" }, isSub ? "子代理" : highlightNodes(msg.name || "工具", query)),
+                isSub && msg.sub.type ? React.createElement("span", { className: "ccw-sub-badge" }, msg.sub.type) : null,
+                target ? React.createElement("span", { className: "ccw-tool-target" + (isSub ? " ccw-tool-desc" : ""), title: target }, target) : null,
+              ),
+              React.createElement("span", { className: "ccw-toolstate " + st.cls },
+                React.createElement("span", { className: "ccw-dot" }), st.text),
+              hasResult ? React.createElement("span", { className: "ccw-tool-size" }, sizeHint) : null,
+              ts ? React.createElement("span", { className: "ccw-tool-time", title: "调用时间：" + ts }, ts) : null,
+              hasResult ? React.createElement(CcwIcon, { name: "chev-r", size: 12, className: "ccw-chev" + (toolOpen ? " open" : "") }) : null,
+            ),
+            isSub && toolOpen && metaBits.length ? React.createElement("div", { className: "ccw-tool-meta", title: metaTitle || undefined }, metaBits.join(" · ")) : null,
+            subHtml ? React.createElement("div", { className: "ccw-tool-body ccw-sub-body" },
+              React.createElement("div", { className: "ccw-md", dangerouslySetInnerHTML: { __html: subHtml } })) : null,
+            !isSub && hasResult && toolOpen ? React.createElement("div", { className: "ccw-tool-body" },
+              React.createElement("div", { className: "ccw-tool-out" }, highlightNodes(shown, query))) : null,
+          ),
         );
       }
       if (msg.role === "result") {
         return React.createElement("div", { className: "ccw-msg result" + (msg.isError ? " err" : "") + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
-          (msg.isError ? "⚠ " : "✓ "), highlightNodes(msg.text, query));
+          React.createElement(CcwIcon, { name: msg.isError ? "alert" : "check", size: 13, className: "ccw-result-icon" }), highlightNodes(msg.text, query));
       }
       if (msg.role === "control") {
         return React.createElement(ControlCard, { msg: msg, hl: hl, dataIndex: dataIndex, query: query });
@@ -887,20 +1360,131 @@ window.__ModuleLoader__.load({
     // ------------------------------------------------------------------
     // 侧边栏
     // ------------------------------------------------------------------
-    function Sidebar({ snap, collapsed, toggleWs, onNew, onSwitch, onAddWs, onRenameSession, onDeleteSession, onRenameWs, onDeleteWs, width, pickingWs, currentWs, onSelectWs }) {
+    function wsDisplayName(w) {
+      const name = ((w && w.name) || "").trim();
+      if (name) return name;
+      const p = ((w && w.path) || "").replace(/[\\/]+$/, "");
+      if (!p) return "未关联工作区";
+      const parts = p.split(/[\\/]/);
+      return parts[parts.length - 1] || p;
+    }
+
+    // 工作区归一化：历史扫描可能把某个会话的子目录也登记成“工作区”。
+    // 展示时只保留最外层工作区，把其子目录里的会话并回父工作区，避免出现幽灵分组。
+    function wsCleanPath(p) {
+      return String(p || "").replace(/[\\/]+$/, "");
+    }
+    function wsIsSubpath(p, parent) {
+      const child = wsCleanPath(p);
+      const base = wsCleanPath(parent);
+      if (!child || !base || child === base) return false;
+      return child.indexOf(base + "/") === 0 || child.indexOf(base + "\\") === 0;
+    }
+    function wsRootForPath(p, list) {
+      let cur = wsCleanPath(p);
+      if (!cur) return "";
+      const paths = (list || []).filter(function (w) { return w && w.path; });
+      const seen = {};
+      for (let guard = 0; guard < 50; guard++) {
+        if (seen[cur]) break;
+        seen[cur] = true;
+        let parent = "";
+        for (const w of paths) {
+          const q = wsCleanPath(w.path);
+          if (!q || q === cur) continue;
+          if (wsIsSubpath(cur, q) && q.length > parent.length) parent = q;
+        }
+        if (!parent) break;
+        cur = parent;
+      }
+      return cur;
+    }
+    function normalizeWorkspaces(raw) {
+      const list = (raw || []).filter(function (w) {
+        return w && (w.path || w.name || (w.sessions && w.sessions.length));
+      });
+      const pathList = list.filter(function (w) { return !!w.path; });
+      const groups = [];
+      const byRoot = {};
+      for (const w of pathList) {
+        const root = wsRootForPath(w.path, pathList);
+        if (!byRoot[root]) {
+          byRoot[root] = { path: root, name: "", sessions: [] };
+          groups.push(byRoot[root]);
+        }
+        if (w.path === root && w.name) byRoot[root].name = w.name;
+      }
+      for (const w of pathList) {
+        const root = wsRootForPath(w.path, pathList);
+        const g = byRoot[root];
+        if (!g) continue;
+        // 只沿用根工作区自己的名字；子目录工作区的自定义名不应覆盖父工作区
+        const sessions = w.sessions || [];
+        for (const s of sessions) g.sessions.push(s);
+      }
+      for (const g of groups) {
+        const seen = {};
+        g.sessions = g.sessions.filter(function (s) {
+          const id = s && (s.id || s.key);
+          if (!id) return true;
+          if (seen[id]) return false;
+          seen[id] = true;
+          return true;
+        });
+        g.sessions.sort(function (a, b) {
+          const ap = a.active ? 0 : (a.status === "running" || a.status === "starting") ? 1 : 2;
+          const bp = b.active ? 0 : (b.status === "running" || b.status === "starting") ? 1 : 2;
+          if (ap !== bp) return ap - bp;
+          return (b.mtimeMs || 0) - (a.mtimeMs || 0);
+        });
+      }
+      // path 为空的历史分组（没有 cwd 的会话）保持独立，固定在末尾。
+      const orphans = list.filter(function (w) { return !w.path; });
+      return groups.concat(orphans);
+    }
+
+    function Sidebar({ snap, collapsed, toggleWs, onNew, onSwitch, onAddWs, onRenameSession, onDeleteSession, onRenameWs, onDeleteWs, width, pickingWs, currentWs, onSelectWs, drawerMode, drawerOpen, onCloseDrawer, sidebarRef }) {
       // 相对时间显示所需的本地计时（30s 一跳，纯本地渲染，不产生网络请求）
       const [now, setNow] = React.useState(function () { return Date.now(); });
       const [kw, setKw] = React.useState("");
+      const filterRef = React.useRef(null);
       React.useEffect(function () {
         const t = setInterval(function () { setNow(Date.now()); }, 30000);
         return function () { clearInterval(t); };
       }, []);
-      const all = (snap && snap.workspaces) || [];
+      React.useEffect(function () {
+        function onKey(e) {
+          if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+          if (String(e.key || "").toLowerCase() !== "k") return;
+          const el = filterRef.current;
+          if (!el) return;
+          const side = sidebarRef && sidebarRef.current;
+          if (!side || side.getAttribute("aria-hidden") === "true") return;
+          const host = side.closest && side.closest(".ccw");
+          if (!host || host.offsetParent === null) return;
+          e.preventDefault();
+          el.focus();
+          el.select();
+        }
+        window.addEventListener("keydown", onKey);
+        return function () { window.removeEventListener("keydown", onKey); };
+      }, []);
+      // 工作区头、会话行是 div/span，补上 Enter / Space 激活，避免只能鼠标操作
+      function activateOnKey(e, fn) {
+        if (e.target !== e.currentTarget) return;
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        fn();
+      }
+      const all = normalizeWorkspaces((snap && snap.workspaces) || []);
+      // 历史会话可能没有记录 cwd，服务端会生成 path 为空的分组；固定放到末尾并给出可读名称
+      const ordered = all.filter(function (w) { return !!w.path; })
+        .concat(all.filter(function (w) { return !w.path; }));
       const q = kw.trim().toLowerCase();
-      let ws = all;
+      let ws = ordered;
       if (q) {
         ws = [];
-        for (const w of all) {
+        for (const w of ordered) {
           const wName = ((w.name || "") + " " + (w.path || "")).toLowerCase();
           const sessions = (w.sessions || []).filter(function (s) {
             return wName.indexOf(q) !== -1 || (s.title || "").toLowerCase().indexOf(q) !== -1;
@@ -908,49 +1492,105 @@ window.__ModuleLoader__.load({
           if (sessions.length > 0) ws.push(Object.assign({}, w, { sessions: sessions }));
         }
       }
-      return React.createElement("div", { className: "ccw-sidebar", style: { width: width } },
-        React.createElement("button", { className: "ccw-btn primary", style: { width: "100%", marginBottom: 8 }, onClick: onNew }, "＋ 新会话"),
-        React.createElement("button", { className: "ccw-btn small", style: { width: "100%", marginBottom: 8 }, onClick: onAddWs, disabled: pickingWs }, pickingWs ? "正在打开目录选择…" : "＋ 添加工作区"),
-        React.createElement("input", {
-          className: "ccw-wsfilter", placeholder: "搜索会话 / 工作区…", value: kw,
-          onChange: function (e) { setKw(e.target.value); },
-        }),
-        ws.length === 0 ? React.createElement("div", { className: "ccw-dim", style: { padding: "8px 6px" } }, q ? "无匹配的会话或工作区" : "暂无工作区") : null,
-        ws.map(function (w) {
+      return React.createElement("div", {
+        className: "ccw-sidebar", id: "ccw-sidebar", ref: sidebarRef,
+        role: drawerMode && drawerOpen ? "dialog" : undefined,
+        "aria-modal": drawerMode && drawerOpen ? "true" : undefined,
+        "aria-hidden": drawerMode && !drawerOpen ? "true" : undefined,
+        "aria-label": "会话列表",
+        tabIndex: -1,
+        style: { width: width },
+      },
+        drawerMode ? React.createElement("div", { className: "ccw-drawer-head" },
+          React.createElement("span", { className: "ccw-drawer-title" }, "会话"),
+          React.createElement("button", {
+            className: "ccw-icbtn", title: "关闭会话列表", "aria-label": "关闭会话列表",
+            "data-drawer-autofocus": "true",
+            onClick: onCloseDrawer,
+          }, React.createElement(CcwIcon, { name: "x", size: 15 }))
+        ) : null,
+        React.createElement("button", { className: "ccw-btn primary", onClick: onNew }, React.createElement(CcwIcon, { name: "plus", size: 15 }), "新会话"),
+        React.createElement("div", { className: "ccw-searchbox" },
+          React.createElement(CcwIcon, { name: "search", size: 13, className: "ccw-searchbox-icon" }),
+          React.createElement("input", {
+            ref: filterRef,
+            className: "ccw-wsfilter", placeholder: "搜索会话 / 工作区…", value: kw,
+            "aria-label": "搜索会话或工作区",
+            "aria-keyshortcuts": "Meta+K Control+K",
+            onChange: function (e) { setKw(e.target.value); },
+          }),
+          React.createElement("kbd", { className: "ccw-search-kbd", "aria-hidden": "true" }, (typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "")) ? "⌘K" : "Ctrl K"),
+        ),
+        React.createElement("div", { className: "ccw-sgroups" },
+        !snap ? React.createElement("div", { className: "ccw-skel-side", "aria-hidden": "true" },
+          [0, 1, 2].map(function (i) {
+            return React.createElement("div", { className: "ccw-skel-side-row", key: i },
+              React.createElement("span", { className: "ccw-skel-dot" }),
+              React.createElement("span", { className: "ccw-skel-bar", style: { width: ["72%", "58%", "66%"][i] } })
+            );
+          })
+        ) : ws.length === 0 ? React.createElement("div", { className: "ccw-dim", style: { padding: "8px 6px" } }, q ? "无匹配的会话或工作区" : "暂无工作区") : null,
+        ws.map(function (w, wi) {
+          const isOrphan = !w.path;
+          const label = wsDisplayName(w);
+          const sessions = w.sessions || [];
           const open = !collapsed.has(w.path);
-          return React.createElement("div", { className: "ccw-ws", key: w.path },
-            React.createElement("div", { className: "ccw-ws-head" + (currentWs === w.path ? " current" : "") },
-              React.createElement("span", { style: { cursor: "pointer" }, title: open ? "收起" : "展开", onClick: () => toggleWs(w.path) },
-                React.createElement("span", null, open ? "▾" : "▸"),
+          return React.createElement("div", { className: "ccw-ws" + (isOrphan ? " ccw-ws-orphan" : ""), key: w.path || ("__orphan_" + wi) },
+            React.createElement("div", { className: "ccw-ws-head" + (!isOrphan && currentWs === w.path ? " current" : "") },
+              React.createElement("span", {
+                role: "button", tabIndex: 0,
+                "aria-label": (open ? "收起" : "展开") + "工作区 " + label,
+                "aria-expanded": open,
+                style: { cursor: "pointer", display: "inline-flex", alignItems: "center", flex: "none" },
+                title: open ? "收起" : "展开",
+                onClick: () => toggleWs(w.path),
+                onKeyDown: (e) => activateOnKey(e, () => toggleWs(w.path)),
+              },
+                React.createElement(CcwIcon, { name: "chev-r", size: 12, className: "ccw-ws-chev" + (open ? " open" : "") }),
               ),
-              currentWs === w.path ? React.createElement("span", { className: "ccw-ws-cur", title: "当前工作区" }) : null,
               React.createElement("span", {
                 className: "ccw-ws-name",
-                style: { cursor: "pointer", minWidth: 0 },
-                title: currentWs === w.path ? "当前工作区：" + w.path : "设为当前工作区：" + w.path,
-                onClick: () => onSelectWs(w),
-              }, w.name || w.path),
-              React.createElement("span", { className: "ccw-dim" }, "(" + w.sessions.length + ")"),
-              React.createElement("button", { className: "ccw-icbtn", title: "重命名工作区", onClick: () => onRenameWs(w) }, "✎"),
-              React.createElement("button", { className: "ccw-icbtn", title: "移除工作区（不删文件）", onClick: () => onDeleteWs(w) }, "🗑"),
+                role: isOrphan ? undefined : "button",
+                tabIndex: isOrphan ? undefined : 0,
+                "aria-current": !isOrphan && currentWs === w.path ? "true" : undefined,
+                style: { cursor: isOrphan ? "default" : "pointer", minWidth: 0 },
+                title: isOrphan ? "这些历史会话没有记录工作区路径" : (currentWs === w.path ? "当前工作区：" + w.path : "设为当前工作区：" + w.path),
+                onClick: isOrphan ? undefined : () => onSelectWs(w),
+                onKeyDown: isOrphan ? undefined : (e) => activateOnKey(e, () => onSelectWs(w)),
+              }, label),
+              React.createElement("span", { className: "ccw-ws-count" }, sessions.length),
+              isOrphan ? null : React.createElement("button", { className: "ccw-icbtn", title: "重命名工作区", "aria-label": "重命名工作区 " + label, onClick: () => onRenameWs(w) }, React.createElement(CcwIcon, { name: "pencil", size: 13 })),
+              isOrphan ? null : React.createElement("button", { className: "ccw-icbtn", title: "移除工作区（不删文件）", "aria-label": "移除工作区 " + label, onClick: () => onDeleteWs(w) }, React.createElement(CcwIcon, { name: "trash", size: 13 })),
             ),
-            open ? w.sessions.map(function (s) {
+            open ? sessions.map(function (s, si) {
+              const sTitle = ((s.title || "").trim()) || s.id || "（会话）";
               return React.createElement("div", {
-                key: s.id || s.key || s.title,
+                key: s.id || s.key || ("s" + si),
                 className: "ccw-srow" + (s.active ? " active" : ""),
+                role: "button",
+                tabIndex: 0,
+                "aria-label": "打开会话 " + sTitle + (s.active ? "（当前会话）" : ""),
+                "aria-current": s.active ? "true" : undefined,
                 onClick: () => onSwitch(s),
+                onKeyDown: (e) => activateOnKey(e, () => onSwitch(s)),
               },
-                React.createElement("span", { className: "ccw-sdot", style: { background: s.status === "running" || s.status === "starting" ? "#f59e0b" : s.active ? "#2563eb" : "#d1d5db" } }),
-                React.createElement("span", { className: "ccw-stitle", title: s.title }, s.title || s.id || "（会话）"),
+                React.createElement("span", { className: "ccw-sdot" + (s.status === "running" || s.status === "starting" ? " run" : s.active ? " acc" : "") }),
+                React.createElement("span", { className: "ccw-stitle", title: s.title || sTitle }, sTitle),
                 s.mtimeMs ? React.createElement("span", { className: "ccw-sdim", title: "最后变更：" + formatFullTime(s.mtimeMs) }, formatRelativeTime(s.mtimeMs, now)) : null,
                 s.id ? React.createElement("span", { className: "ccw-srow-actions" },
-                  React.createElement("button", { className: "ccw-icbtn", title: "重命名会话", onClick: (e) => { e.stopPropagation(); onRenameSession(s); } }, "✎"),
-                  React.createElement("button", { className: "ccw-icbtn", title: "删除会话", onClick: (e) => { e.stopPropagation(); onDeleteSession(s); } }, "🗑"),
+                  React.createElement("button", { className: "ccw-icbtn", title: "重命名会话", "aria-label": "重命名会话 " + sTitle, onClick: (e) => { e.stopPropagation(); onRenameSession(s); } }, React.createElement(CcwIcon, { name: "pencil", size: 13 })),
+                  React.createElement("button", { className: "ccw-icbtn", title: "删除会话", "aria-label": "删除会话 " + sTitle, onClick: (e) => { e.stopPropagation(); onDeleteSession(s); } }, React.createElement(CcwIcon, { name: "trash", size: 13 })),
                 ) : null,
               );
             }) : null,
           );
         }),
+        ),
+        React.createElement("div", { className: "ccw-sidefoot" },
+          React.createElement("button", {
+            className: "ccw-ghostbtn", onClick: onAddWs, disabled: pickingWs, title: "添加工作区",
+          }, pickingWs ? "正在打开目录选择…" : React.createElement(React.Fragment, null, React.createElement(CcwIcon, { name: "plus", size: 14 }), "添加工作区"))
+        ),
       );
     }
 
@@ -1004,18 +1644,19 @@ window.__ModuleLoader__.load({
       const pad = function (n) { return (n < 10 ? "0" : "") + n; };
       return pad(dt.getHours()) + ":" + pad(dt.getMinutes());
     }
-    // 相对时间：会话最后变更距现在的间隔（中文友好格式）
+    // 相对时间：侧栏行密度优先，用紧凑写法（完整时间在 title 里）
     function formatRelativeTime(ms, now) {
       if (ms == null || !isFinite(ms) || ms <= 0) return "";
       const diff = Math.max(0, (now || Date.now()) - ms);
       const s = Math.floor(diff / 1000);
       if (s < 60) return "刚刚";
       const m = Math.floor(s / 60);
-      if (m < 60) return m + "分钟前";
+      if (m < 60) return m + "m";
       const h = Math.floor(m / 60);
-      if (h < 24) return h + "小时前";
+      if (h < 24) return h + "h";
       const d = Math.floor(h / 24);
-      if (d < 30) return d + "天前";
+      if (d === 1) return "昨天";
+      if (d < 7) return d + "d";
       const dt = new Date(ms);
       return (dt.getMonth() + 1) + "月" + dt.getDate() + "日";
     }
@@ -1040,10 +1681,30 @@ window.__ModuleLoader__.load({
       if (durationMs != null) time = formatDuration(durationMs);
       else if (startedAt != null && running) time = formatDuration(now - startedAt);
       return React.createElement("span", { className: "ccw-status " + (status || "idle") },
+        React.createElement("span", { className: "ccw-dot" }),
         label + (time ? " · " + time : ""));
     }
+    // 加载骨架：只在首帧快照到达前出现，避免空白闪一下
+    function CcwSkeleton() {
+      const widths = ["82%", "56%", "68%"];
+      return React.createElement("div", { className: "ccw-skel", "aria-hidden": "true" },
+        widths.map(function (w, i) {
+          return React.createElement("div", { className: "ccw-skel-row", key: i },
+            React.createElement("span", { className: "ccw-skel-avatar" }),
+            React.createElement("span", { className: "ccw-skel-lines" },
+              React.createElement("span", { className: "ccw-skel-line", style: { width: w } }),
+              React.createElement("span", { className: "ccw-skel-line", style: { width: i === 0 ? "64%" : "42%" } })
+            )
+          );
+        })
+      );
+    }
+
     function ClaudeCodeView() {
       const open = usePanelOpen();
+      const dark = useCcwTheme();
+      const [menuOpen, setMenuOpen] = React.useState(false);
+      const [drawerOpen, setDrawerOpen] = React.useState(false);
       const [snap, setSnap] = React.useState(null);
       const [draft, setDraft] = React.useState("");
       const [catalog, setCatalog] = React.useState(null);
@@ -1069,13 +1730,20 @@ window.__ModuleLoader__.load({
       geomRef.current = geom;
       const [maximized, setMaximized] = React.useState(false);
       const toggleMaximize = () => setMaximized((v) => !v);
-      const [sidebarW, setSidebarW] = React.useState(() => loadNum("ccwSidebarW", 240));
+      // 最大化时按视口宽度判断响应式，避免沿用最大化前的窄面板状态
+      const effectiveW = maximized ? (typeof window !== "undefined" ? window.innerWidth : geom.width) : geom.width;
+      const compact = (effectiveW || 0) < 640;   // 文本/工具卡密度
+      const drawerMode = (effectiveW || 0) < 760; // 侧栏改为抽屉
+      const [sidebarW, setSidebarW] = React.useState(() => loadNum("ccwSidebarW", 248));
       const sidebarWRef = React.useRef(sidebarW);
       sidebarWRef.current = sidebarW;
       const [minimized, setMinimized] = React.useState(false);
       const [toasts, setToasts] = React.useState([]);
       const [dialog, setDialog] = React.useState(null);
       const dialogInputRef = React.useRef(null);
+      const sidebarRef = React.useRef(null);
+      const dialogBoxRef = React.useRef(null);
+      const updateBoxRef = React.useRef(null);
       const [queued, setQueued] = React.useState(null);
       const [pendingImages, setPendingImages] = React.useState([]);
       const [msgLimit, setMsgLimit] = React.useState(120);
@@ -1093,6 +1761,186 @@ window.__ModuleLoader__.load({
       const draftStoreRef = React.useRef({}); // 会话 key -> 草稿
       const pagRef = React.useRef(null);      // “加载更早”前记录滚动位置，避免跳动
       const minAnchorRef = React.useRef(null); // 最小化前记录视口锚点 {i, offset}，恢复时还原
+
+      // 顶栏 ⋯ 菜单：点击外部或 Esc 关闭
+      React.useEffect(function () {
+        if (!menuOpen) return;
+        function onDown(e) {
+          if (!(e.target && e.target.closest && e.target.closest(".ccw-menu-wrap"))) setMenuOpen(false);
+        }
+        function onKey(e) { if (e.key === "Escape") setMenuOpen(false); }
+        document.addEventListener("mousedown", onDown);
+        document.addEventListener("keydown", onKey);
+        return function () {
+          document.removeEventListener("mousedown", onDown);
+          document.removeEventListener("keydown", onKey);
+        };
+      }, [menuOpen]);
+
+      // 抽屉：Esc 关闭；面板变宽或关闭时自动收起
+      React.useEffect(function () {
+        if (!drawerOpen) return;
+        function onKey(e) { if (e.key === "Escape") setDrawerOpen(false); }
+        document.addEventListener("keydown", onKey);
+        return function () { document.removeEventListener("keydown", onKey); };
+      }, [drawerOpen]);
+      React.useEffect(function () {
+        if (!drawerMode) setDrawerOpen(false);
+      }, [drawerMode]);
+      React.useEffect(function () {
+        if (!open) setDrawerOpen(false);
+      }, [open]);
+
+      // 抽屉打开时：焦点进入、Tab 留在抽屉内、关闭后还原
+      React.useEffect(function () {
+        if (!drawerMode || !drawerOpen) return;
+        const box = sidebarRef.current;
+        if (!box) return;
+        const prev = document.activeElement;
+        let retry = 0;
+        let tries = 0;
+        function focusables() {
+          return Array.prototype.slice.call(box.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+          )).filter(function (el) { return el.offsetParent !== null; });
+        }
+        // 抽屉有 180ms 的 visibility 过渡，隐藏时 focus() 不会生效，需要等过渡结束再重试
+        function focusInitial() {
+          if (tries++ > 6) return;
+          const initial = box.querySelector("[data-drawer-autofocus]") || focusables()[0] || box;
+          if (initial && initial.focus) initial.focus();
+          if (initial && document.activeElement !== initial) {
+            retry = setTimeout(focusInitial, 80);
+          }
+        }
+        const t = setTimeout(focusInitial, 0);
+        function onKey(e) {
+          if (e.key !== "Tab") return;
+          const list = focusables();
+          if (!list.length) return;
+          const first = list[0], last = list[list.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first || !box.contains(document.activeElement)) {
+              e.preventDefault(); last.focus();
+            }
+          } else if (document.activeElement === last || !box.contains(document.activeElement)) {
+            e.preventDefault(); first.focus();
+          }
+        }
+        document.addEventListener("keydown", onKey, true);
+        return function () {
+          clearTimeout(t);
+          clearTimeout(retry);
+          document.removeEventListener("keydown", onKey, true);
+          if (prev && prev.focus && prev.isConnected) prev.focus();
+        };
+      }, [drawerMode, drawerOpen]);
+
+      // Dialog：焦点陷阱 + Esc + 关闭后还原焦点
+      React.useEffect(function () {
+        if (!dialog) return;
+        const box = dialogBoxRef.current;
+        if (!box) return;
+        const prev = document.activeElement;
+        function focusables() {
+          return Array.prototype.slice.call(box.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+          )).filter(function (el) { return el.offsetParent !== null; });
+        }
+        const t = setTimeout(function () {
+          if (dialog.kind === "prompt" && dialogInputRef.current) {
+            dialogInputRef.current.focus();
+            dialogInputRef.current.select();
+          } else {
+            const list = focusables();
+            if (list.length) list[list.length - 1].focus();
+          }
+        }, 0);
+        function onKey(e) {
+          if (e.key === "Escape") {
+            e.preventDefault(); e.stopPropagation();
+            if (dialog.resolve) dialog.resolve(null);
+            setDialog(null);
+            return;
+          }
+          if (e.key !== "Tab") return;
+          const list = focusables();
+          if (!list.length) return;
+          const first = list[0], last = list[list.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first || !box.contains(document.activeElement)) {
+              e.preventDefault(); last.focus();
+            }
+          } else if (document.activeElement === last || !box.contains(document.activeElement)) {
+            e.preventDefault(); first.focus();
+          }
+        }
+        document.addEventListener("keydown", onKey, true);
+        return function () {
+          clearTimeout(t);
+          document.removeEventListener("keydown", onKey, true);
+          if (prev && prev.focus && prev.isConnected) prev.focus();
+        };
+      }, [dialog]);
+
+      // 更新弹窗：焦点陷阱 + Esc + 关闭后还原
+      React.useEffect(function () {
+        if (!showUpdate) return;
+        const box = updateBoxRef.current;
+        if (!box) return;
+        const prev = document.activeElement;
+        function focusables() {
+          return Array.prototype.slice.call(box.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+          )).filter(function (el) { return el.offsetParent !== null; });
+        }
+        const t = setTimeout(function () {
+          const list = focusables();
+          if (list.length) list[0].focus();
+          else box.focus();
+        }, 0);
+        function onKey(e) {
+          if (e.key === "Escape") {
+            e.preventDefault(); e.stopPropagation();
+            setShowUpdate(false);
+            return;
+          }
+          if (e.key !== "Tab") return;
+          const list = focusables();
+          if (!list.length) return;
+          const first = list[0], last = list[list.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first || !box.contains(document.activeElement)) {
+              e.preventDefault(); last.focus();
+            }
+          } else if (document.activeElement === last || !box.contains(document.activeElement)) {
+            e.preventDefault(); first.focus();
+          }
+        }
+        document.addEventListener("keydown", onKey, true);
+        return function () {
+          clearTimeout(t);
+          document.removeEventListener("keydown", onKey, true);
+          if (prev && prev.focus && prev.isConnected) prev.focus();
+        };
+      }, [showUpdate]);
+
+      // 轮次目录：Esc 或点击外部关闭
+      React.useEffect(function () {
+        if (!tocOpen) return;
+        function onKey(e) { if (e.key === "Escape") setTocOpen(false); }
+        function onDown(e) {
+          const t = e.target;
+          if (t && t.closest && (t.closest(".ccw-toc") || t.closest('[aria-label="轮次目录"]'))) return;
+          setTocOpen(false);
+        }
+        document.addEventListener("keydown", onKey);
+        document.addEventListener("mousedown", onDown);
+        return function () {
+          document.removeEventListener("keydown", onKey);
+          document.removeEventListener("mousedown", onDown);
+        };
+      }, [tocOpen]);
 
       // 活跃会话与运行状态
       const active = snap && snap.active;
@@ -1237,9 +2085,20 @@ window.__ModuleLoader__.load({
       // 之后完全由用户的“点击选中 / 添加 / 删除”动作维护，避免被稍后到达的旧快照覆盖。
       React.useEffect(() => {
         if (snap && typeof snap.current === "string" && snap.current) {
-          setSelWs(function (prev) { return prev || snap.current; });
+          const rootCurrent = wsRootForPath(snap.current, (snap.workspaces || []).filter(function (w) { return w && w.path; }));
+          setSelWs(function (prev) { return prev || rootCurrent || snap.current; });
         }
       }, [snap]);
+
+      // 切换到一个已有会话时，让顶栏工作区跟随该会话的 cwd。只在该会话 key 或
+      // 服务端补全后的 cwd 变化时触发，不覆盖用户手动点击工作区的选择。
+      const activeSessionKey = snap && snap.active ? (snap.active.key || snap.active.sessionId || "") : "";
+      const activeSessionCwd = snap && snap.active ? (snap.active.cwd || "") : "";
+      React.useEffect(() => {
+        if (!snap || !snap.active || !snap.active.cwd) return;
+        const root = wsRootForPath(snap.active.cwd, (snap.workspaces || []).filter(function (w) { return w && w.path; }));
+        if (root) setSelWs(root);
+      }, [activeSessionKey, activeSessionCwd]);
 
       // 输入框初始高度
       React.useEffect(() => {
@@ -1473,12 +2332,14 @@ window.__ModuleLoader__.load({
 
       function onSwitch(s) {
         stickRef.current = true; // 切换会话后跟随底部
+        if (drawerMode) setDrawerOpen(false);
         if (s.key) apiChecked("switch", { key: s.key });
         else if (s.id) apiChecked("switch", { sessionId: s.id });
       }
 
       function onNew() {
         stickRef.current = true;
+        if (drawerMode) setDrawerOpen(false);
         apiChecked("new-session", { permissionMode: "default", cwd: selWs });
       }
 
@@ -1622,22 +2483,41 @@ window.__ModuleLoader__.load({
       }
 
       function onResizeStart(e) {
+        if (e.button != null && e.button !== 0) return;
         e.preventDefault();
+        e.stopPropagation();
         const startY = e.clientY;
         const startH = inputHRef.current;
+        const prevCursor = document.body.style.cursor;
+        const prevSelect = document.body.style.userSelect;
+        document.body.style.cursor = "row-resize";
+        document.body.style.userSelect = "none";
         function move(ev) {
           // 拖拽把手在输入框上方：向上拖（clientY 减小）→ 高度增大；向下拖 → 高度减小
-          const h = Math.min(360, Math.max(40, startH - (ev.clientY - startY)));
+          const h = Math.min(360, Math.max(44, startH - (ev.clientY - startY)));
           inputHRef.current = h;
           setInputH(h);
         }
         function up() {
-          document.removeEventListener("mousemove", move);
-          document.removeEventListener("mouseup", up);
+          document.removeEventListener("pointermove", move);
+          document.removeEventListener("pointerup", up);
+          document.removeEventListener("pointercancel", up);
+          document.body.style.cursor = prevCursor;
+          document.body.style.userSelect = prevSelect;
           try { localStorage.setItem("ccwInputHeight", String(inputHRef.current)); } catch (e) {}
         }
-        document.addEventListener("mousemove", move);
-        document.addEventListener("mouseup", up);
+        document.addEventListener("pointermove", move);
+        document.addEventListener("pointerup", up);
+        document.addEventListener("pointercancel", up);
+      }
+
+      function onResizeKeyDown(e) {
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault();
+        const h = Math.min(360, Math.max(44, inputHRef.current + (e.key === "ArrowUp" ? 10 : -10)));
+        inputHRef.current = h;
+        setInputH(h);
+        try { localStorage.setItem("ccwInputHeight", String(h)); } catch (e2) {}
       }
 
       // ── 面板拖拽（标题栏）──
@@ -1726,6 +2606,8 @@ window.__ModuleLoader__.load({
       }
 
       const messages = active && active.messages ? active.messages : [];
+      const wsList = snap ? normalizeWorkspaces(snap.workspaces || []) : [];
+      const workspaceCount = wsList.length;
       // 轮次：每个 user 消息开启一轮（目录 + 流程分隔线共用）
       const turns = [];
       const turnByIndex = new Map();
@@ -1761,16 +2643,12 @@ window.__ModuleLoader__.load({
         });
       }
 
-      // 本回合耗时 + 当前会话累计费用（费用取 sessionCostUsd，跨 query 生命周期累计；缺失时回退本 query 值）
+      // 当前会话累计费用（费用取 sessionCostUsd，跨 query 生命周期累计；缺失时回退本 query 值）
       let resultMeta = null;
       if (active && active.lastResult) {
         const lr = active.lastResult;
-        const dur = lr.durationMs != null ? lr.durationMs : active.durationMs;
-        const parts = [];
-        if (dur != null) parts.push(formatDuration(dur));
         const sessionCost = lr.sessionCostUsd != null ? lr.sessionCostUsd : lr.costUsd;
-        if (sessionCost != null) parts.push("会话 $" + (Math.round(sessionCost * 1000) / 1000));
-        if (parts.length) resultMeta = parts.join(" · ");
+        if (sessionCost != null) resultMeta = "$" + (Math.round(sessionCost * 1000) / 1000);
       }
 
       // 当前会话累计 token 用量（以 M 为单位，跨 query 生命周期累计）
@@ -1781,6 +2659,11 @@ window.__ModuleLoader__.load({
         if (st != null) { tokenMeta = formatTokens(st); tokenMetaFull = formatTokensFull(st); }
       }
 
+      // 面包屑优先用工作区的显示名（可能是用户重命名过的），取不到再回退目录名
+      const wsNameEntry = wsList.find(function (w) { return w.path && w.path === selWs; });
+      const wsName = wsNameEntry ? wsDisplayName(wsNameEntry)
+        : (selWs ? String(selWs).split(/[\\/]/).filter(Boolean).pop() : "");
+      const crumbTitle = !snap ? "加载中…" : active ? (active.title || "会话") : "暂无活跃会话";
       const panelStyle = maximized
         ? { left: 8, top: 8, width: "calc(100vw - 16px)", height: "calc(100vh - 16px)" }
         : { left: geom.left, top: geom.top, width: geom.width, height: geom.height };
@@ -1788,57 +2671,88 @@ window.__ModuleLoader__.load({
       // 最小化：收起为角落胶囊（WS 保持连接，状态持续推送）
       if (minimized) {
         return React.createElement("button", {
-          className: "ccw-mini-pill", title: "点击恢复 Claude Code 面板",
+          className: "ccw-mini-pill", title: "点击恢复 Claude Code 面板", "data-ccw-theme": dark ? "dark" : "light",
           onClick: function () { setMinimized(false); },
         },
           React.createElement(ClaudeLogo, { size: 14 }),
           "Claude Code",
-          React.createElement("span", { style: { display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: conn ? "#22c55e" : "#9ca3af" } }),
+          React.createElement("span", { className: "ccw-dot " + (conn ? "ok" : "") }),
         );
       }
 
       return React.createElement("div", {
-        className: "ccw",
+        className: "ccw" + (compact ? " ccw-narrow" : "") + (drawerMode ? " ccw-drawer-mode" : "") + (drawerMode && drawerOpen ? " ccw-drawer-open" : ""),
+        "data-ccw-theme": dark ? "dark" : "light",
         style: panelStyle,
       },
         React.createElement("div", { className: "ccw-titlebar", onPointerDown: beginDrag, title: maximized ? "" : "拖拽移动面板" },
-          React.createElement("span", { className: "ccw-brand" }, React.createElement(ClaudeLogo, { size: 15 }), "Claude Code"),
-          React.createElement("span", { className: "ccw-conn" }, conn ? "🟢 已连接" : (reconn > 0 ? "🟡 重连中(第" + reconn + "次)" : "🔴 未连接")),
+          React.createElement("span", { className: "ccw-brand" }, React.createElement(ClaudeLogo, { size: 16 }), "Claude Code"),
+          React.createElement("span", { className: "ccw-local", title: "插件服务运行在本机 DSH 宿主内" }, "本地"),
+          React.createElement("span", { className: "ccw-conn" },
+            React.createElement("span", { className: "ccw-dot " + (conn ? "ok" : (reconn > 0 ? "run" : "err")) }),
+            conn ? "已连接" : (reconn > 0 ? "重连中 · 第 " + reconn + " 次" : "未连接")),
           React.createElement("div", { style: { flex: 1 } }),
-          React.createElement("button", { className: "ccw-max", title: "最小化到角落", onClick: function () {
+          React.createElement("button", { className: "ccw-iconbtn", title: "最小化到角落", "aria-label": "最小化", onClick: function () {
             if (dialog) { dialog.resolve(null); setDialog(null); }
             captureMinAnchor();
             setMinimized(true);
-          } }, "—"),
-          React.createElement("button", { className: "ccw-max", title: maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, maximized ? "还原" : "最大化"),
-          React.createElement("button", { className: "ccw-close", title: "关闭", onClick: () => setOpen(false) }, "✕"),
+          } }, React.createElement(CcwIcon, { name: "minus" })),
+          React.createElement("button", { className: "ccw-iconbtn", title: maximized ? "还原窗口" : "最大化窗口", "aria-label": maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, React.createElement(CcwIcon, { name: maximized ? "restore" : "square" })),
+          React.createElement("button", { className: "ccw-iconbtn", title: "关闭", "aria-label": "关闭", onClick: () => setOpen(false) }, React.createElement(CcwIcon, { name: "x" })),
         ),
         maximized ? null : React.createElement("div", { className: "ccw-resize-se", onPointerDown: beginPanelResize, title: "拖拽调整面板尺寸" }),
         React.createElement("div", { className: "ccw-topbar" },
-          React.createElement("span", { className: "ccw-dim" }, active ? (active.title || "会话") : "暂无活跃会话"),
-          active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
-          resultMeta ? React.createElement("span", { className: "ccw-dim", title: "本回合耗时 · 当前会话累计费用" }, "· " + resultMeta) : null,
-          tokenMeta != null ? React.createElement("span", { className: "ccw-dim", title: "当前会话累计 token：" + tokenMetaFull }, "· 会话 " + tokenMeta + " tokens") : null,
-          React.createElement("div", { style: { flex: 1 } }),
-          React.createElement("button", { className: "ccw-btn small", style: searchOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "会话内搜索（Ctrl/Cmd+F）", onClick: toggleSearch }, "🔍"),
-          React.createElement("button", { className: "ccw-btn small", style: tocOpen ? { borderColor: "#2563eb", color: "#2563eb" } : null, title: "轮次目录（跳到某轮）", onClick: toggleToc }, "📑"),
-          React.createElement("select", {
-            className: "ccw-btn small",
-            value: modelId,
-            onChange: (e) => setModelId(e.target.value),
-            title: "模型（--model）",
-          },
-            React.createElement("option", { value: "" }, "默认模型"),
-            models.map(function (mm) { return React.createElement("option", { key: mm.id, value: mm.id }, mm.label); }),
+          drawerMode ? React.createElement("button", {
+            className: "ccw-iconbtn ccw-drawer-toggle" + (drawerOpen ? " active" : ""),
+            title: drawerOpen ? "关闭会话列表" : "打开会话列表",
+            "aria-label": drawerOpen ? "关闭会话列表" : "打开会话列表",
+            "aria-expanded": drawerOpen, "aria-controls": "ccw-sidebar",
+            onClick: function () { setDrawerOpen(function (v) { return !v; }); },
+          }, React.createElement(CcwIcon, { name: "panel-left" })) : null,
+          React.createElement("div", { className: "ccw-crumb" },
+            React.createElement(CcwIcon, { name: "folder", size: 13 }),
+            wsName ? React.createElement("span", { className: "ccw-crumb-ws", title: selWs }, wsName) : null,
+            wsName ? React.createElement(CcwIcon, { name: "chev-r", size: 11 }) : null,
+            React.createElement("b", { title: crumbTitle }, crumbTitle)
           ),
-          React.createElement("button", { className: "ccw-btn small", onClick: onClearSession, disabled: !active, title: "清空当前会话上下文，重新开始（磁盘对话文件保留）" }, "🧹 清空"),
-          React.createElement("button", { className: "ccw-btn small", onClick: function () { refetchCatalog(); toast("已刷新指令与模型列表", "ok"); }, title: "刷新指令与模型列表（在 ~/.claude 新增指令后无需重开面板）" }, "⟳"),
-          React.createElement("button", { className: "ccw-btn small", onClick: openUpdate, title: "检查并更新本机 Claude Code" }, "🔄 检查更新"),
+          active ? React.createElement(StatusBadge, { status: active.status, startedAt: active.startedAt, durationMs: active.durationMs }) : null,
+          resultMeta ? React.createElement("span", { className: "ccw-meta", title: "当前会话累计费用" }, "· " + resultMeta) : null,
+          tokenMeta != null ? React.createElement("span", { className: "ccw-meta", title: "当前会话累计 token：" + tokenMetaFull }, "· " + tokenMeta + " tokens") : null,
+          React.createElement("div", { style: { flex: 1 } }),
+          React.createElement("button", { className: "ccw-iconbtn" + (searchOpen ? " active" : ""), title: "会话内搜索（Ctrl/Cmd+F）", "aria-label": "会话内搜索", onClick: toggleSearch }, React.createElement(CcwIcon, { name: "search" })),
+          React.createElement("button", { className: "ccw-iconbtn" + (tocOpen ? " active" : ""), title: "轮次目录（跳到某轮）", "aria-label": "轮次目录", onClick: toggleToc }, React.createElement(CcwIcon, { name: "list" })),
+          React.createElement("div", { className: "ccw-menu-wrap" },
+            React.createElement("button", { className: "ccw-iconbtn" + (menuOpen ? " active" : ""), title: "更多操作", "aria-label": "更多操作", "aria-haspopup": "menu", "aria-expanded": menuOpen, onClick: function () { setMenuOpen(function (v) { return !v; }); } }, React.createElement(CcwIcon, { name: "more" })),
+            menuOpen ? React.createElement("div", { className: "ccw-menu", role: "menu" },
+              React.createElement("button", { className: "ccw-menu-item", role: "menuitem", disabled: !active, onClick: function () { setMenuOpen(false); onClearSession(); } }, React.createElement(CcwIcon, { name: "eraser" }), "清空当前会话"),
+              React.createElement("div", { className: "ccw-menu-sep" }),
+              React.createElement("button", { className: "ccw-menu-item", role: "menuitem", onClick: function () { setMenuOpen(false); refetchCatalog(); toast("已刷新指令与模型列表", "ok"); } }, React.createElement(CcwIcon, { name: "refresh" }), "刷新指令与模型"),
+              React.createElement("button", { className: "ccw-menu-item", role: "menuitem", onClick: function () { setMenuOpen(false); openUpdate(); } }, React.createElement(CcwIcon, { name: "update" }), "检查更新")
+            ) : null
+          )
         ),
-        searchOpen ? React.createElement("div", { className: "ccw-searchbar" },
+        React.createElement("div", { className: "ccw-body" },
+          drawerMode && drawerOpen ? React.createElement("div", {
+            className: "ccw-scrim", "aria-hidden": "true",
+            onClick: function () { setDrawerOpen(false); },
+          }) : null,
+          React.createElement(Sidebar, {
+            snap: snap, collapsed: collapsed, toggleWs: toggleWs,
+            onNew: onNew, onSwitch: onSwitch, onAddWs: onAddWs,
+            onRenameSession: onRenameSession, onDeleteSession: onDeleteSession,
+            onRenameWs: onRenameWs, onDeleteWs: onDeleteWs,
+            width: drawerMode ? 280 : sidebarW, pickingWs: pickingWs,
+            currentWs: selWs, onSelectWs: onSelectWs,
+            drawerMode: drawerMode, drawerOpen: drawerOpen, onCloseDrawer: function () { setDrawerOpen(false); },
+            sidebarRef: sidebarRef,
+          }),
+          React.createElement("div", { className: "ccw-split", title: "拖拽调整工作区宽度", onPointerDown: beginSidebarResize }),
+          React.createElement("div", { className: "ccw-main" },
+        searchOpen ? React.createElement("div", { className: "ccw-searchbar", role: "search", "aria-label": "会话内搜索" },
           React.createElement("input", {
             ref: searchInputRef,
             className: "ccw-search-input",
+            "aria-label": "搜索会话内容",
             placeholder: "搜索会话内容…（Enter 下一个 / Shift+Enter 上一个 / Esc 关闭）",
             value: searchQ,
             onChange: function (e) { onSearchChange(e.target.value); },
@@ -1847,23 +2761,12 @@ window.__ModuleLoader__.load({
               if (e.key === "Enter") { e.preventDefault(); searchStep(e.shiftKey ? -1 : 1); }
             },
           }),
-          sq ? React.createElement("span", { className: "ccw-search-count" },
+          sq ? React.createElement("span", { className: "ccw-search-count", "aria-live": "polite" },
             searchMatches.length ? (searchIdx + 1) + " / " + searchMatches.length : "无匹配") : null,
-          React.createElement("button", { className: "ccw-btn small", title: "上一个（Shift+Enter）", disabled: !searchMatches.length, onClick: function () { searchStep(-1); } }, "↑"),
-          React.createElement("button", { className: "ccw-btn small", title: "下一个（Enter）", disabled: !searchMatches.length, onClick: function () { searchStep(1); } }, "↓"),
-          React.createElement("button", { className: "ccw-btn small", title: "关闭搜索", onClick: function () { setSearchOpen(false); setSearchQ(""); setSearchIdx(-1); } }, "✕"),
+          React.createElement("button", { className: "ccw-btn small", title: "上一个（Shift+Enter）", "aria-label": "上一个匹配", disabled: !searchMatches.length, onClick: function () { searchStep(-1); } }, React.createElement(CcwIcon, { name: "arrow-up", size: 13 })),
+          React.createElement("button", { className: "ccw-btn small", title: "下一个（Enter）", "aria-label": "下一个匹配", disabled: !searchMatches.length, onClick: function () { searchStep(1); } }, React.createElement(CcwIcon, { name: "arrow-down", size: 13 })),
+          React.createElement("button", { className: "ccw-btn small", title: "关闭搜索", "aria-label": "关闭搜索", onClick: function () { setSearchOpen(false); setSearchQ(""); setSearchIdx(-1); } }, React.createElement(CcwIcon, { name: "x", size: 13 })),
         ) : null,
-        React.createElement("div", { className: "ccw-body" },
-          React.createElement(Sidebar, {
-            snap: snap, collapsed: collapsed, toggleWs: toggleWs,
-            onNew: onNew, onSwitch: onSwitch, onAddWs: onAddWs,
-            onRenameSession: onRenameSession, onDeleteSession: onDeleteSession,
-            onRenameWs: onRenameWs, onDeleteWs: onDeleteWs,
-            width: sidebarW, pickingWs: pickingWs,
-            currentWs: selWs, onSelectWs: onSelectWs,
-          }),
-          React.createElement("div", { className: "ccw-split", title: "拖拽调整工作区宽度", onPointerDown: beginSidebarResize }),
-          React.createElement("div", { className: "ccw-main" },
             React.createElement("div", {
               className: "ccw-msgs",
               ref: msgsRef,
@@ -1874,40 +2777,71 @@ window.__ModuleLoader__.load({
               },
             },
               unanswered.length >= 2 ? React.createElement("div", { className: "ccw-batchbar" },
-                "⚠ " + unanswered.length + " 个工具待授权",
+                React.createElement(CcwIcon, { name: "alert", size: 14 }), unanswered.length + " 个工具待授权",
                 React.createElement("button", { className: "ccw-btn small primary", onClick: function () { answerAll("allow"); } }, "全部允许"),
                 React.createElement("button", { className: "ccw-btn small danger", onClick: function () { answerAll("deny"); } }, "全部拒绝"),
               ) : null,
-              messages.length === 0
-                ? React.createElement("div", { className: "ccw-empty" }, "开始一个新会话，或从左侧选择历史会话")
-                : null,
+              !snap ? React.createElement(CcwSkeleton) : messages.length === 0 ? React.createElement("div", { className: "ccw-empty" },
+                React.createElement("div", { className: "ccw-empty-mark" }, React.createElement(ClaudeLogo, { size: 22 })),
+                React.createElement("div", { className: "ccw-empty-title" }, active ? "开始这个会话" : "还没有会话"),
+                React.createElement("div", { className: "ccw-empty-desc" }, active
+                  ? "在下方输入消息，或输入 / 调用指令。"
+                  : "选择左侧工作区，或直接开始一个新会话。"),
+                React.createElement("div", { className: "ccw-empty-actions" },
+                  !active && workspaceCount === 0
+                    ? React.createElement("button", { className: "ccw-btn primary", onClick: onAddWs, disabled: pickingWs }, pickingWs ? "正在打开目录选择…" : "添加工作区")
+                    : !active
+                      ? React.createElement("button", { className: "ccw-btn primary", onClick: onNew }, React.createElement(CcwIcon, { name: "plus", size: 14 }), "新会话")
+                      : null,
+                  drawerMode ? React.createElement("button", { className: "ccw-btn", onClick: function () { setDrawerOpen(true); } }, React.createElement(CcwIcon, { name: "panel-left", size: 14 }), "历史会话") : null
+                ),
+                React.createElement("div", { className: "ccw-empty-hint" }, "Enter 发送 · Shift+Enter 换行 · / 调用指令")
+              ) : null,
               startIdx > 0 ? React.createElement("button", { className: "ccw-btn small ccw-loadmore", onClick: loadMore }, "加载更早（还有 " + startIdx + " 条）") : null,
-              visible.map(function (m, vi) {
-                const i = startIdx + vi;
-                const live = running && i === messages.length - 1;
-                const turn = turnByIndex.get(i);
-                const isHit = searchIdx >= 0 && searchMatches[searchIdx] === i;
-                const query = searchMatchSet.has(i) ? sq : "";
-                const row = [];
-                if (turn && turn.n > 1) {
-                  row.push(React.createElement("div", { key: "turn" + i, className: "ccw-turn" }, "第 " + turn.n + " 轮" + (turn.ts ? " · " + formatClock(turn.ts) : "")));
-                }
-                row.push(React.createElement(MessageView, { key: m.id != null ? m.id : "i" + i, msg: m, live: live, onFill: fillInput, hl: isHit, dataIndex: i, query: query }));
-                return React.createElement(React.Fragment, { key: "f" + i }, row);
-              }),
+              (function () {
+                const blocks = [];
+                let block = null;
+                visible.forEach(function (m, vi) {
+                  const i = startIdx + vi;
+                  const live = running && i === messages.length - 1;
+                  const turn = turnByIndex.get(i);
+                  if (turn) {
+                    block = {
+                      key: "tb" + turn.n + "-" + i,
+                      label: React.createElement("div", { className: "ccw-turn" }, "第 " + turn.n + " 轮" + (turn.ts ? " · " + formatClock(turn.ts) : "")),
+                      items: [],
+                    };
+                    blocks.push(block);
+                  }
+                  if (!block) {
+                    block = { key: "tb-pre-" + i, label: null, items: [] };
+                    blocks.push(block);
+                  }
+                  const isHit = searchIdx >= 0 && searchMatches[searchIdx] === i;
+                  const query = searchMatchSet.has(i) ? sq : "";
+                  block.items.push(React.createElement(MessageView, { key: m.id != null ? m.id : "i" + i, msg: m, live: live, onFill: fillInput, hl: isHit, dataIndex: i, query: query }));
+                });
+                return blocks.map(function (b) {
+                  return React.createElement("div", { className: "ccw-turnblk", key: b.key },
+                    b.label,
+                    React.createElement("div", { className: "ccw-turnbody" }, b.items)
+                  );
+                });
+              })(),
               active && active.status === "starting" ? React.createElement("div", { className: "ccw-msg assistant" }, "…") : null,
             ),
-            tocOpen ? React.createElement("div", { className: "ccw-toc" },
+            tocOpen ? React.createElement("div", { className: "ccw-toc", role: "group", "aria-label": "轮次目录" },
               React.createElement("div", { className: "ccw-toc-head" },
-                "📑 轮次目录",
+                React.createElement(CcwIcon, { name: "list", size: 14 }),
+                "轮次目录",
                 React.createElement("span", { className: "ccw-search-count" }, "共 " + turns.length + " 轮"),
                 React.createElement("div", { style: { flex: 1 } }),
-                React.createElement("button", { className: "ccw-icbtn", title: "关闭", onClick: function () { setTocOpen(false); } }, "✕"),
+                React.createElement("button", { className: "ccw-icbtn", title: "关闭目录", "aria-label": "关闭轮次目录", onClick: function () { setTocOpen(false); } }, React.createElement(CcwIcon, { name: "x", size: 13 })),
               ),
               React.createElement("div", { className: "ccw-toc-list" },
                 turns.length === 0 ? React.createElement("div", { className: "ccw-dim", style: { padding: "8px" } }, "暂无对话轮次") : null,
                 turns.map(function (t) {
-                  return React.createElement("div", { key: t.n, className: "ccw-toc-item", title: "跳到第 " + t.n + " 轮", onClick: function () { jumpToTurn(t); } },
+                  return React.createElement("button", { key: t.n, type: "button", className: "ccw-toc-item", title: "跳到第 " + t.n + " 轮", onClick: function () { jumpToTurn(t); } },
                     React.createElement("span", { className: "ccw-toc-n" }, "第" + t.n + "轮"),
                     t.ts ? React.createElement("span", { className: "ccw-toc-time" }, formatClock(t.ts)) : null,
                     React.createElement("span", { className: "ccw-toc-txt" }, turnSnippet(t.text) || "（图片/空消息）"),
@@ -1915,14 +2849,14 @@ window.__ModuleLoader__.load({
                 }),
               ),
             ) : null,
-          ),
-        ),
         React.createElement("div", { className: "ccw-footer" },
-          pop ? React.createElement("div", { className: "ccw-pop-list" },
+          React.createElement("div", { className: "ccw-footer-inner" },
+          pop ? React.createElement("div", { className: "ccw-pop-list", id: "ccw-pop-list", role: "listbox", "aria-label": "指令和技能" },
             pop.items.map(function (c, i) {
               return React.createElement("div", {
                 key: c.name,
                 className: "ccw-pop-item" + (i === pop.sel ? " sel" : ""),
+                role: "option", "aria-selected": i === pop.sel,
                 onMouseDown: () => pickCommand(c),
               },
                 React.createElement("span", { className: "ccw-pop-kind" + (c.kind === "skill" ? " skill" : "") }, c.kind === "skill" ? "技能" : "指令"),
@@ -1934,24 +2868,35 @@ window.__ModuleLoader__.load({
             }),
           ) : null,
           queued ? React.createElement("div", { className: "ccw-queued" },
-            "⏳ 运行结束后将自动发送：" + (queued.length > 60 ? queued.slice(0, 60) + "…" : queued),
-            React.createElement("button", { className: "ccw-icbtn", title: "取消排队", onClick: function () { setQueued(null); } }, "×"),
+            React.createElement(CcwIcon, { name: "clock", size: 12, className: "ccw-queue-icon" }),
+            "运行结束后将自动发送：" + (queued.length > 60 ? queued.slice(0, 60) + "…" : queued),
+            React.createElement("button", { className: "ccw-icbtn", title: "取消排队", "aria-label": "取消排队", onClick: function () { setQueued(null); } }, React.createElement(CcwIcon, { name: "x", size: 12 })),
           ) : null,
           pendingImages.length ? React.createElement("div", { className: "ccw-img-chips" },
             pendingImages.map(function (im, ix) {
               return React.createElement("span", { key: ix, className: "ccw-img-chip" },
-                "🖼 " + (im.name || "图片"),
-                React.createElement("button", { className: "ccw-icbtn", title: "移除", onClick: function () { setPendingImages(function (p) { return p.filter(function (_, j) { return j !== ix; }); }); } }, "×"),
+                React.createElement(CcwIcon, { name: "image", size: 12 }),
+                (im.name || "图片"),
+                React.createElement("button", { className: "ccw-icbtn", title: "移除", "aria-label": "移除图片 " + (im.name || ""), onClick: function () { setPendingImages(function (p) { return p.filter(function (_, j) { return j !== ix; }); }); } }, React.createElement(CcwIcon, { name: "x", size: 11 })),
               );
             }),
           ) : null,
-          React.createElement("div", { className: "ccw-resize", onMouseDown: onResizeStart, title: "拖拽调整输入框高度" }),
-          React.createElement("div", { className: "ccw-input-row" },
+          React.createElement("div", {
+            className: "ccw-resize", onPointerDown: onResizeStart, onKeyDown: onResizeKeyDown,
+            role: "separator", "aria-orientation": "horizontal", "aria-label": "拖拽调整输入框高度",
+            tabIndex: 0, title: "拖拽调整输入框高度",
+          }, React.createElement("span", { className: "ccw-resize-grip" })),
+          React.createElement("div", {
+            className: "ccw-composer",
+            onPointerDown: function () { if (drawerOpen) setDrawerOpen(false); },
+          },
             React.createElement("textarea", {
               ref: inputRef,
               className: "ccw-input",
+              "aria-label": "输入消息",
               style: inputH ? { height: inputH + "px" } : null,
-              placeholder: "输入消息，Enter 发送，Shift+Enter 换行；/ 触发指令（Tab 补全）；可粘贴图片；↑ 调上一条",
+              placeholder: "输入消息，/ 调用指令，可粘贴图片",
+              title: "Enter 发送，Shift+Enter 换行；输入 / 触发指令（Tab 补全）；可粘贴图片；↑ 调上一条",
               value: draft,
               onChange: onInputChange,
               onPaste: function (e) {
@@ -1997,14 +2942,48 @@ window.__ModuleLoader__.load({
                 }
               },
             }),
-            running
-              ? React.createElement("button", { className: "ccw-btn danger", onClick: function () { apiChecked("stop", {}); } }, "⏹ 停止")
-              : React.createElement("button", { className: "ccw-btn primary", onClick: send }, "发送"),
+            React.createElement("div", { className: "ccw-composer-bar" },
+              React.createElement("span", { className: "ccw-composer-hint" },
+                React.createElement(CcwIcon, { name: "slash", size: 11 }), "指令"),
+              React.createElement("div", { style: { flex: 1 } }),
+              React.createElement("select", {
+                className: "ccw-model ccw-model-inline",
+                value: modelId,
+                onChange: (e) => setModelId(e.target.value),
+                "aria-label": "选择模型",
+                title: "模型（--model）",
+              },
+                React.createElement("option", { value: "" }, "默认模型"),
+                models.map(function (mm) { return React.createElement("option", { key: mm.id, value: mm.id }, mm.label); }),
+              ),
+              running ? React.createElement("button", {
+                className: "ccw-stopbtn", onClick: function () { apiChecked("stop", {}); },
+                title: "停止当前会话", "aria-label": "停止当前会话",
+              }, React.createElement("span", { className: "ccw-stop-sq", "aria-hidden": "true" }), "停止") : null,
+              React.createElement("button", { className: "ccw-sendbtn", onClick: send, title: running ? "发送（运行中排队）" : "发送（Enter）", "aria-label": running ? "发送并排队" : "发送" }, React.createElement(CcwIcon, { name: "arrow-up", size: 15 })),
+            ),
+          ),
+          ),
+          React.createElement("div", { className: "ccw-toasts", role: "status", "aria-live": "polite", "aria-atomic": "false" },
+            toasts.map(function (t) {
+              return React.createElement("div", { key: t.id, className: "ccw-toast " + t.kind },
+                React.createElement("span", { className: "ccw-toast-ic" }, React.createElement(CcwIcon, {
+                  name: t.kind === "err" ? "alert" : t.kind === "ok" ? "check" : "info", size: 13,
+                })),
+                React.createElement("span", { className: "ccw-toast-text" }, t.text)
+              );
+            }),
+          ),
+        ),
           ),
         ),
         showUpdate ? React.createElement("div", { className: "ccw-modal" },
-          React.createElement("div", { className: "ccw-modal-box" },
-            React.createElement("div", { className: "ccw-modal-head" }, "🔄 Claude Code 更新"),
+          React.createElement("div", {
+            className: "ccw-modal-box", ref: updateBoxRef,
+            role: "dialog", "aria-modal": "true", "aria-labelledby": "ccw-update-title",
+            tabIndex: -1,
+          },
+            React.createElement("div", { className: "ccw-modal-head", id: "ccw-update-title" }, React.createElement(CcwIcon, { name: "update", size: 15 }), "Claude Code 更新"),
             updateInfo == null
               ? React.createElement("div", { className: "ccw-dim" }, "正在检查版本…")
               : updating
@@ -2013,7 +2992,7 @@ window.__ModuleLoader__.load({
                   ? React.createElement("div", { className: "ccw-msg result err" }, updateInfo.error || "检查失败")
                   : updateInfo.version
                     ? React.createElement("div", null,
-                        React.createElement("div", null, "✅ 已更新到 " + updateInfo.version),
+                        React.createElement("div", { className: "ccw-updated" }, React.createElement(CcwIcon, { name: "check", size: 14 }), "已更新到 " + updateInfo.version),
                         updateInfo.log ? React.createElement("pre", { className: "ccw-modal-log" }, updateInfo.log) : null,
                       )
                     : React.createElement("div", null,
@@ -2022,7 +3001,7 @@ window.__ModuleLoader__.load({
                         updateInfo.latestError ? React.createElement("div", { className: "ccw-dim" }, updateInfo.latestError) : null,
                         updateInfo.hasUpdate
                           ? React.createElement("button", { className: "ccw-btn primary", style: { marginTop: 10 }, onClick: doUpdate }, "立即更新")
-                          : React.createElement("div", { className: "ccw-dim", style: { marginTop: 8 } }, "已是最新版本 ✓"),
+                          : React.createElement("div", { className: "ccw-dim ccw-updated", style: { marginTop: 8 } }, React.createElement(CcwIcon, { name: "check", size: 13 }), "已是最新版本"),
                       ),
             React.createElement("div", { className: "ccw-modal-actions" },
               React.createElement("button", { className: "ccw-btn small", onClick: () => setShowUpdate(false) }, "关闭"),
@@ -2033,11 +3012,16 @@ window.__ModuleLoader__.load({
           className: "ccw-modal",
           onClick: function (e) { if (e.target === e.currentTarget) { dialog.resolve(null); setDialog(null); } },
         },
-          React.createElement("div", { className: "ccw-modal-box", style: { width: "min(440px,90vw)" } },
-            React.createElement("div", { className: "ccw-modal-head" }, dialog.title),
+          React.createElement("div", {
+            className: "ccw-modal-box", ref: dialogBoxRef,
+            role: "dialog", "aria-modal": "true", "aria-labelledby": "ccw-dialog-title",
+            tabIndex: -1, style: { width: "min(440px,90vw)" },
+          },
+            React.createElement("div", { className: "ccw-modal-head", id: "ccw-dialog-title" }, dialog.title),
             dialog.kind === "prompt" ? React.createElement("input", {
               ref: dialogInputRef,
               className: "ccw-dialog-input",
+              "aria-label": "会话名称",
               defaultValue: dialog.value,
               autoFocus: true,
               onKeyDown: function (e) {
@@ -2055,11 +3039,6 @@ window.__ModuleLoader__.load({
             ),
           ),
         ) : null,
-        React.createElement("div", { className: "ccw-toasts" },
-          toasts.map(function (t) {
-            return React.createElement("div", { key: t.id, className: "ccw-toast " + t.kind }, t.text);
-          }),
-        ),
       );
     }
 
