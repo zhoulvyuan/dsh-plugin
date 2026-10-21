@@ -2,6 +2,28 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [v0.1.1] - 2026-10-21
+
+本次变更集中在 **dsh-claude-code-web**，以表现层重构为主，另外修正了会话工作区归属的一个数据兜底问题。
+
+### 变更（Changed）
+
+- **Claude Code 风格界面重构**：颜色、边框、字号收敛到 `--ccw-*` 令牌；标题栏补「本地」标识；侧栏改为「新会话 → 搜索 → 工作区分组 → 底部添加工作区」结构；消息流由气泡改为文档流，工具调用统一为单卡片；输入区与底部工具栏合并为同一块表面；补齐暗色、窄面板抽屉、空态、骨架屏、Toast 与对话目录。
+- **侧栏搜索快捷键改为 `⌘K` / `Ctrl K`**：`⌘F` / `Ctrl F` 已被会话内搜索占用，避免一次按键打开两个搜索框。
+- **工作区子目录会话回并父工作区**：历史扫描自动发现的子目录不再显示为独立幽灵分组，其会话会并入最外层工作区；显式工作区名不会再被子目录名覆盖。
+
+### 修复（Fixes）
+
+- **会话缺少 `cwd` 时错误挂到当前工作区**：Claude 转录文件只有 `last-prompt` / `cost-state` 等元数据时没有 `cwd` 字段，切换会话会回退到当前 `workspaceDir`。服务端现在从 `~/.claude/projects/<encoded-cwd>` 目录名反查已注册工作区并补全 `cwd`，客户端顶栏工作区也会跟随该会话。
+- **输入框聚焦时与工具栏出现分割线**：去掉 textarea 内层的 border / outline / box-shadow，焦点只保留在外层 composer；工具栏透明且无上下边框。
+- **消息流没有占满主内容宽度**：移除 `616px` / `72ch` 上限，消息、轮次标签、工具卡随主内容区全宽；轮次标签吸顶时不再透出下方文字。
+
+### 可访问性（Accessibility）
+
+- 侧栏工作区头、工作区名、会话行支持 `Enter` / `Space` 激活，补 `aria-expanded` / `aria-current`。
+- 侧栏重命名、删除、取消排队、移除图片等图标按钮补 `aria-label`。
+- 模型下拉的键盘焦点补柔和 focus ring，不再只靠边框颜色区分。
+
 ## [v0.1.0] - 2026-10-08
 
 本次发布的变更集中在 **dsh-claude-code-web** 插件，仅涉及该插件的 `lib/client.js` 与 `server.cjs`。
@@ -53,6 +75,7 @@
 - **dsh-md-workspace**：Markdown 工作区插件，内置自包含的 mermaid 渲染、更安全的 URL scheme 过滤与图片净化。
 - **dsh-updchk**：插件更新检查。
 
+[v0.1.1]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.0.2...v0.1.0
 [v0.0.2]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.0.1...v0.0.2
 [v0.0.1]: https://github.com/zhoulvyuan/dsh-plugin/releases/tag/v0.0.1

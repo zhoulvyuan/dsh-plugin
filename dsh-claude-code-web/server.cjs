@@ -919,7 +919,7 @@ function switchSession(args) {
   runtime.forEach(function (v) { if (v.sessionId === sid) target = v })
   if (!target) {
     const h = history.find(function (x) { return x.id === sid })
-    const r = newRecord(a.permissionMode, (h && h.cwd) ? h.cwd : null)
+    const r = newRecord(a.permissionMode, sessionCwd(sid) || null)
     r.sessionId = sid
     if (h && h.title) r.title = h.title
     r.messages = loadHistoryMessages(sid)
@@ -1086,6 +1086,7 @@ function refreshHistory() {
         // 优先级与 Claude Code SDK 一致：用户重命名 > AI 自动标题 > summary > 首条用户消息
         title = customTitle || aiTitle || summaryTitle || first
       } catch (e) {}
+      if (!cwd) cwd = workspaceForProjectDir(d)
       out.push({ id: f.slice(0, -6), title: String(title || '').slice(0, 80), cwd: cwd, mtimeMs: s.mtimeMs })
     }
   }
@@ -1096,6 +1097,25 @@ function refreshHistory() {
   saveWsRegistry()
   markDirty()
   return { ok: true, count: history.length }
+}
+
+// Claude Code 的 projects 目录名是 cwd 把 "/" 替换成 "-" 得到的；
+// 某些会话文件只有 last-prompt/cost-state，没有 cwd 字段，需要从目录名反查已注册工作区。
+function projectDirKey(p) {
+  return String(p || '').replace(/[\\/]/g, '-')
+}
+function workspaceForProjectDir(dirName) {
+  const d = String(dirName || '')
+  if (!d) return ''
+  for (const w of wsRegistry.workspaces) {
+    if (w && w.path && projectDirKey(w.path) === d) return w.path
+  }
+  return ''
+}
+function sessionFileCwd(sessionId) {
+  const p = readSessionFile(sessionId)
+  if (!p) return ''
+  return workspaceForProjectDir(path.basename(path.dirname(p)))
 }
 
 function readSessionFile(sessionId) {
@@ -1523,7 +1543,7 @@ function sessionCwd(sid) {
   runtime.forEach(function (v) { if (v.sessionId === sid) r = v })
   if (r && r.cwd) return r.cwd
   const h = history.find(function (x) { return x.id === sid })
-  return h ? (h.cwd || '') : ''
+  return h ? (h.cwd || sessionFileCwd(sid)) : sessionFileCwd(sid)
 }
 
 async function sessionRename(sid, title) {
