@@ -2,6 +2,41 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [未发布]
+
+本次变更集中在 **dsh-claude-code-web**：工作台可移出 DSH 界面独立使用，并补上本机鉴权。
+
+### 新增（Features）
+
+- **工作台支持弹出为独立浏览器窗口 / 标签页**：标题栏新增「在独立窗口打开」按钮，点击后在 DSH 界面之外打开独立页；DSH 内面板随即收起，两者通过同一份 HTTP / WebSocket 服务通信，可并存使用。
+  - 独立页为**全窗口常开**形态，隐藏窗口控制按钮与缩放手柄，避免与独立浏览器窗口的边框重复。
+  - 默认**浅色**主题（`data-theme="light"`，压过系统深色模式），与面板浅色令牌保持一致。
+  - 新增 `public/index.html` 作为独立页入口，按序加载 React → ReactDOM → UI 源码；React 18.3.1 UMD 运行时随插件分发（`public/react.production.min.js`、`public/react-dom.production.min.js`），**离线可用、不依赖 CDN**。
+- **`lib/client.js` 重构为单文件双模式**：抽出 `build(React, opts)` 工厂，DSH 侧经 `window.__ModuleLoader__` 以 `build(require("react"))` 注册，独立页侧经 `window.__CCW_UI__.build(React, { standalone: true })` 调用。同一份源码供两种形态使用，无代码分叉、无重复维护。
+  - `opts.standalone` 同时驱动三处行为差异：面板初始常开、最大化状态初始为真、标题栏隐藏窗口控制按钮。
+- **新增 `/claude/claude-ui.js` 固定路由**：由插件 HTTP 面直接伺服 `lib/client.js`，独立页与 DSH 内面板共用同一份 UI 源码，零拷贝、零漂移。
+
+### 安全（Security）
+
+- **内置本机 loopback 信任检查**：`/claude/api/*` 与 WebSocket 下行 `/claude/api/stream` 原先**默认无鉴权**，任何能访问本机端口的进程或网页均可调用。现于 `server.cjs` 增加信任检查，HTTP 与 WebSocket 升级两条路径均覆盖：
+  - 带浏览器 `Origin` 头且主机名非 `127.0.0.1` / `localhost` / `::1` 的跨源请求一律 `403`；
+  - `Sec-Fetch-Site: cross-site` 的跨站请求一律 `403`；
+  - 移除原先的 `Access-Control-Allow-Origin: *`，浏览器跨源读取与预检均不再放行。
+  - 刻意不校验 `Host` 头：桌面端经 IPC 桥接的请求其 `Host` 可能是合成的，校验会误伤日常使用；仅依赖浏览器必带的 `Origin` / `Sec-Fetch-Site`，既堵住跨源与 DNS 重绑定攻击，又不影响本机使用。
+  - 本机 curl / 面板 / 弹出窗口均照常工作；此处的鉴权仅针对插件自身的 HTTP 接口，**与 Claude / Anthropic 凭据无关，无需重新登录**。
+
+### 修复（Fixes）
+
+- **回填 Mermaid 渲染修复**：线上插件曾直接修补过 Mermaid 相关缺陷，但未回流仓库，存在「重装插件即丢失」的风险。本次一并回填——
+  - `quoteMermaidLabels`：Mermaid 11 的词法会把紧跟文字的 `@` 当成 `LINK_ID` / `@{}` 形状标记，未加引号的标签里出现 `()` 也会报 Parse error（例如 `OCR(双模型融合)`）。仅在首次渲染失败后作为兜底，把流程图节点 / 子图标题里的这类裸标签用双引号包起来（mermaid 合法的 quoted label 语法），标签文字原样保留。
+  - `suppressErrorRendering` + `cleanupMermaidTempNodes`：解析失败不再生成挂在 `<body>` 末尾的临时错误图，并清理历史残留节点。
+  - `mermaidSvgCache` 改为缓存 `{ svg, src }` 对象，命中缓存时按新签名回填。
+
+### 变更（Changed）
+
+- **删除 `dsh-md-workspace` 插件**：其能力已被 `dsh-claude-code-web` 取代（自包含 mermaid 运行时、更安全的 URL scheme 过滤与图片净化），移除以避免重复维护。
+- 仓库收敛为**单一 `master` 分支**维护，删除历史版本分支（`v0.0.1` / `v0.0.2` / `v0.1.0` / `v0.1.1`），版本快照由 Git 标签保留。
+
 ## [v0.1.1] - 2026-10-21
 
 本次变更集中在 **dsh-claude-code-web**，以表现层重构为主，另外修正了会话工作区归属的一个数据兜底问题。
