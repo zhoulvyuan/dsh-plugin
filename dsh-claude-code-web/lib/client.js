@@ -3198,9 +3198,10 @@ function build(React, opts) {
 }
 
 // DSH 客户端入口：经模块装载器注册 factory（惰性物化）
+// id 须与 npm 包名一致（含 scope），DSH 依此匹配客户端半部。
 if (typeof window !== "undefined" && window.__ModuleLoader__) {
   window.__ModuleLoader__.load({
-    id: "dsh-claude-code-web",
+    id: "@zhoulvyuan/dsh-claude-code-web",
     factory: function (require) { return build(require("react")); }
   });
 }

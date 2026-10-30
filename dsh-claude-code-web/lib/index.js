@@ -15,7 +15,9 @@ import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
 
-const name = 'dsh-claude-code-web'
+// 运行时插件名须与 npm 包名完全一致（含 scope），DSH 依此在 profile 的
+// node_modules 里定位该插件。
+const name = '@zhoulvyuan/dsh-claude-code-web'
 const inject = ['webServer']
 
 function apply(ctx) {

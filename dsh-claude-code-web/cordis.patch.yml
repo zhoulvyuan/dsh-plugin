@@ -1,6 +1,9 @@
 # dsh-claude-code-web bundle patch: insert this plugin's row over the
 # composed profile tree. Applied as its own bundle layer via dsh.profile.bundles.
+#
+# `name` must match the npm package name exactly, scope included — the bundle
+# layer resolves the plugin by that name in the profile's node_modules.
 
 - insert:
     - id: claude-code-web
-      name: dsh-claude-code-web
+      name: '@zhoulvyuan/dsh-claude-code-web'
