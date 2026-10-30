@@ -36,5 +36,18 @@
     "cordis.patch.yml",
     "DEPLOY.md"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhoulvyuan/dsh-plugin.git",
+    "directory": "dsh-claude-code-web"
+  },
+  "homepage": "https://github.com/zhoulvyuan/dsh-plugin/tree/master/dsh-claude-code-web",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "claude-code",
+    "anthropic",
+    "deepseek-harness"
+  ]
 }
