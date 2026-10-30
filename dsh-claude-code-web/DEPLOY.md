@@ -85,6 +85,11 @@ tar xzf claude-dotfile.tgz -C ~
 
 ## 六、安全提示
 
-插件暴露的 `/claude/api/*`（send / answer-control / open-path 等）**默认无鉴权**。
-- 仅限本机 `localhost` 使用：无额外风险。
-- 若 DSH 暴露在局域网/多用户环境：请确认 DSH 自带鉴权层，或为插件增加访问令牌后再部署。
+插件暴露的 `/claude/api/*`（send / answer-control / open-path 等）与 WebSocket 下行 `/claude/api/stream` 内置**本机 loopback 信任检查**：
+
+- 仅放行 `127.0.0.1` / `localhost` / `::1` 来源的请求；
+- 带浏览器 `Origin` 头且非 loopback 的跨源请求一律 403；
+- `Sec-Fetch-Site: cross-site` 的跨站请求一律 403；
+- 不再返回 `Access-Control-Allow-Origin: *`。
+
+因此：仅限本机使用（面板、弹出窗口、本机 curl 均正常）；浏览器里打开的第三方网页无法再跨源调用本插件的接口。若 DSH 暴露在局域网 / 多用户环境，仍建议叠加 DSH 自身的鉴权层后再部署。

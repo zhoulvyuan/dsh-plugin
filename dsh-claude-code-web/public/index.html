@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Code 工作台</title>
+<script>
+  // 服务端注入：""（独立 node server.cjs 模式）或 "/claude"（DSH 内嵌模式）
+  // 前端据此拼接 claude-ui.js / react / react-dom / api 的路径
+  window.__CCW_BASE__ = "__CLAUDE_BASE_PATH__";
+</script>
+<style>
+  html, body { margin: 0; height: 100%; }
+  /* data-theme="light" 已强制浅色（detectDark 会命中 /light/ 分支，压过系统深色模式） */
+  body { background: #FBFAF7; }
+  #root { width: 100%; height: 100%; }
+  .ccw-boot-err {
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    color: #55544F; padding: 40px; text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function () {
+  var base = window.__CCW_BASE__ || "";
+  function fail(msg) {
+    var el = document.getElementById("root");
+    if (el) el.innerHTML = '<div class="ccw-boot-err">' + msg + "</div>";
+  }
+  function loadScript(src, done) {
+    var s = document.createElement("script");
+    s.src = src;
+    s.onload = done;
+    s.onerror = function () { fail("加载 <code>" + src + "</code> 失败，请确认插件已安装并运行在 DSH 宿主内。"); };
+    document.head.appendChild(s);
+  }
+  function boot() {
+    if (!window.__CCW_UI__ || typeof window.__CCW_UI__.build !== "function") {
+      fail("加载 Claude Code 界面失败：UI 核心未就绪。");
+      return;
+    }
+    if (!window.React || !window.ReactDOM) {
+      fail("加载 Claude Code 界面失败：React 运行时未就绪。");
+      return;
+    }
+    var api = window.__CCW_UI__.build(window.React, { standalone: true });
+    api.mountStandalone(document.getElementById("root"));
+  }
+  loadScript(base + "/react.production.min.js", function () {
+    loadScript(base + "/react-dom.production.min.js", function () {
+      loadScript(base + "/claude-ui.js", boot);
+    });
+  });
+})();
+</script>
+</body>
+</html>

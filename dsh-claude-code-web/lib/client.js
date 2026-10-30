@@ -1,20 +1,29 @@
-window.__ModuleLoader__.load({
-  id: "dsh-claude-code-web",
-  factory: (require) => {
+function build(React, opts) {
+    opts = opts || {};
     var module = { exports: {} };
     var exports = module.exports;
     Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-    const React = require("react");
 
     const API = "/claude/api";
+    const STANDALONE = opts.standalone === true;
 
     // 全局入口：侧边栏底部按钮（sidebar.footer.action）<-> 悬浮面板（shell.overlay）共享显隐状态
-    let panelOpen = false;
+    let panelOpen = STANDALONE;
     const openListeners = new Set();
     const subscribeOpen = (l) => { openListeners.add(l); return () => { openListeners.delete(l); }; };
     const getOpen = () => panelOpen;
     const setOpen = (v) => { if (panelOpen === v) return; panelOpen = v; for (const l of [...openListeners]) l(); };
     const usePanelOpen = () => React.useSyncExternalStore(subscribeOpen, getOpen);
+
+    // 弹出到独立窗口/标签页：优先 DSH transport 基址（桌面端），否则同源相对地址
+    function openStandalone() {
+      const base = (typeof globalThis !== "undefined" && globalThis.__DSH_TRANSPORT__ && globalThis.__DSH_TRANSPORT__.streamBaseUrl)
+        || (typeof document !== "undefined" && document.baseURI)
+        || (typeof location !== "undefined" && location.origin);
+      let url;
+      try { url = new URL("/claude", base).href; } catch (e) { url = "/claude"; }
+      try { window.open(url, "_blank", "noopener"); } catch (e) {}
+    }
 
     // ------------------------------------------------------------------
     // 样式注入（跟随 md-workspace 的做法：document 注入 <style>）
@@ -989,6 +998,71 @@ window.__ModuleLoader__.load({
         .replace(/&nbsp;/g, " ");
     }
 
+    // —— Mermaid 标签保护（新增）——
+    // Mermaid 11 的词法会把紧跟文字的 @ 当成 LINK_ID / @{} 形状标记，
+    // 未加引号的标签里出现 () 也会报 Parse error（例如 OCR(双模型融合)）。
+    // 仅在首次渲染失败后作为兜底：把流程图节点/子图标题里的这类裸标签用双引号
+    // 包起来（mermaid 合法的 quoted label 语法），标签文字原样保留。
+    function quoteMermaidLabels(src) {
+      const lines = String(src == null ? "" : src).split("\n");
+      let head = "";
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].trim()) { head = lines[i].trim(); break; }
+      }
+      // 只处理流程图；其它图种的 [] () {} 语义不同，避免误伤
+      if (!/^(flowchart|graph)\b/i.test(head)) return src;
+      return lines.map(function (line) {
+        if (!/[@()]/.test(line)) return line;
+        // 1) 复合形状：[[..]]、[(..)]、([..])、((..))、{{..}}
+        line = line.replace(/(\[\[|\[\(|\(\(|\{\{)([^\[\](){}]*@[^\[\](){}]*)(\]\]|\)\]|\)\)|\}\})/g,
+          function (m, open, body, close) {
+            const t = body.trim();
+            if (!t || (t.charAt(0) === '"' && t.charAt(t.length - 1) === '"')) return m;
+            return open + '"' + body.replace(/"/g, "#quot;") + '"' + close;
+          });
+        // 2) 普通方括号标签：[..]（节点、子图标题）
+        return line.replace(/(\[)([^\[\]\n]*[@()][^\[\]\n]*)(\])/g, function (m, open, body, close) {
+          const t = body.trim();
+          if (!t) return m;
+          if (t.charAt(0) === '"' && t.charAt(t.length - 1) === '"') return m; // 已带引号
+          if (/^\(.*\)$/.test(t)) return m;                                    // [(..)] 圆柱形状语法，保持原样
+          return open + '"' + body.replace(/"/g, "#quot;") + '"' + close;
+        });
+      }).join("\n");
+    }
+
+    // 清理旧版渲染失败时被 mermaid 挂到 <body> 末尾的临时错误图（#dccw-mm-*）。
+    // 新版 render 传入游离容器，不会再向 body 注入节点；这里负责清历史残留。
+    function cleanupMermaidTempNodes() {
+      try {
+        const nodes = document.querySelectorAll('[id^="dccw-mm-"]');
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i];
+          if (n && n.parentNode === document.body) n.parentNode.removeChild(n);
+        }
+      } catch (e) {}
+    }
+
+    // 渲染单张图：失败时确保清掉 mermaid 临时注入到 <body> 的节点。
+    // 配合 initialize 的 suppressErrorRendering，解析失败不会再生成底部错误卡。
+    function renderMermaidSvg(mm, src) {
+      const id = "ccw-mm-" + Date.now().toString(36) + "-" + (++mermaidSeed);
+      return mm.render(id, src).then(function (res) {
+        const svg = res && res.svg ? String(res.svg) : "";
+        if (!svg) throw new Error("渲染结果为空");
+        return svg;
+      }).catch(function (err) {
+        // 双保险：清掉 mermaid 可能挂到 body 的临时节点
+        try {
+          const d = document.getElementById("d" + id);
+          if (d && d.parentNode) d.parentNode.removeChild(d);
+          const s = document.getElementById(id);
+          if (s && s.parentNode) s.parentNode.removeChild(s);
+        } catch (e) {}
+        throw err;
+      });
+    }
+
     // 渲染一个 .ccw-mermaid 占位容器（幂等：已渲染/正在流式接收的跳过）
     function renderMermaidBlock(el) {
       if (!el || !el.getAttribute) return;
@@ -1002,7 +1076,7 @@ window.__ModuleLoader__.load({
       const theme = detectDark(el) ? "dark" : "default";
       const cacheKey = theme + "\u0000" + src;
       const cached = mermaidSvgCache.get(cacheKey);
-      if (cached) { paintMermaidSvg(el, cached, src); return; }
+      if (cached) { paintMermaidSvg(el, cached.svg, cached.src); return; }
 
       el.setAttribute("data-ccw-mstate", "loading");
       el.textContent = "";
@@ -1012,14 +1086,35 @@ window.__ModuleLoader__.load({
       el.appendChild(status);
 
       loadMermaid().then(function (mm) {
-        try { mm.initialize({ startOnLoad: false, securityLevel: "strict", theme: theme }); } catch (e) {}
-        return mm.render("ccw-mm-" + Date.now().toString(36) + "-" + (++mermaidSeed), src);
-      }).then(function (res) {
-        const svg = res && res.svg ? String(res.svg) : "";
-        if (!svg) throw new Error("渲染结果为空");
+        try {
+          mm.initialize({
+            startOnLoad: false,
+            securityLevel: "strict",
+            suppressErrorRendering: true,
+            theme: theme,
+          });
+        } catch (e) {}
+        cleanupMermaidTempNodes();
+        // 第一次用原样源码；失败则用「引号包裹 @ 标签」的兜底源码再试一次
+        const variants = [src];
+        const quoted = quoteMermaidLabels(src);
+        if (quoted && quoted !== src) variants.push(quoted);
+        let lastErr = null;
+        function attempt(i) {
+          if (i >= variants.length) return Promise.reject(lastErr || new Error("渲染失败"));
+          return renderMermaidSvg(mm, variants[i]).then(function (svg) {
+            return { svg: svg, src: variants[i] };
+          }, function (err) {
+            lastErr = err;
+            return attempt(i + 1);
+          });
+        }
+        return attempt(0);
+      }).then(function (out) {
+        if (!out || !out.svg) throw new Error("渲染结果为空");
         if (mermaidSvgCache.size > 60) mermaidSvgCache.clear();
-        mermaidSvgCache.set(cacheKey, svg);
-        paintMermaidSvg(el, svg, src);
+        mermaidSvgCache.set(cacheKey, { svg: out.svg, src: out.src });
+        paintMermaidSvg(el, out.svg, out.src);
       }).catch(function (err) {
         paintMermaidError(el, src, err);
       });
@@ -1081,6 +1176,7 @@ window.__ModuleLoader__.load({
       eraser: [["path", { d: "M4 20h16" }], ["path", { d: "M8.5 20L4 15.5 14.5 5l5 5L9.5 20z" }]],
       terminal: [["rect", { x: 3, y: 5, width: 18, height: 14, rx: 2 }], ["path", { d: "M7.5 9.5l3 2.5-3 2.5M13.5 15h4" }]],
       lock: [["rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }], ["path", { d: "M8 11V8a4 4 0 0 1 8 0v3" }]],
+      external: [["path", { d: "M14 4h6v6" }], ["path", { d: "M20 4L10 14" }], ["path", { d: "M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5" }]],
     };
 
     function CcwIcon(props) {
@@ -1728,7 +1824,7 @@ window.__ModuleLoader__.load({
       const [geom, setGeom] = React.useState(loadGeom);
       const geomRef = React.useRef(geom);
       geomRef.current = geom;
-      const [maximized, setMaximized] = React.useState(false);
+      const [maximized, setMaximized] = React.useState(STANDALONE);
       const toggleMaximize = () => setMaximized((v) => !v);
       // 最大化时按视口宽度判断响应式，避免沿用最大化前的窄面板状态
       const effectiveW = maximized ? (typeof window !== "undefined" ? window.innerWidth : geom.width) : geom.width;
@@ -2692,13 +2788,16 @@ window.__ModuleLoader__.load({
             React.createElement("span", { className: "ccw-dot " + (conn ? "ok" : (reconn > 0 ? "run" : "err")) }),
             conn ? "已连接" : (reconn > 0 ? "重连中 · 第 " + reconn + " 次" : "未连接")),
           React.createElement("div", { style: { flex: 1 } }),
-          React.createElement("button", { className: "ccw-iconbtn", title: "最小化到角落", "aria-label": "最小化", onClick: function () {
-            if (dialog) { dialog.resolve(null); setDialog(null); }
-            captureMinAnchor();
-            setMinimized(true);
-          } }, React.createElement(CcwIcon, { name: "minus" })),
-          React.createElement("button", { className: "ccw-iconbtn", title: maximized ? "还原窗口" : "最大化窗口", "aria-label": maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, React.createElement(CcwIcon, { name: maximized ? "restore" : "square" })),
-          React.createElement("button", { className: "ccw-iconbtn", title: "关闭", "aria-label": "关闭", onClick: () => setOpen(false) }, React.createElement(CcwIcon, { name: "x" })),
+          STANDALONE ? null : React.createElement(React.Fragment, null,
+            React.createElement("button", { className: "ccw-iconbtn", title: "在独立窗口打开", "aria-label": "在独立窗口打开", onClick: function () { openStandalone(); setOpen(false); } }, React.createElement(CcwIcon, { name: "external" })),
+            React.createElement("button", { className: "ccw-iconbtn", title: "最小化到角落", "aria-label": "最小化", onClick: function () {
+              if (dialog) { dialog.resolve(null); setDialog(null); }
+              captureMinAnchor();
+              setMinimized(true);
+            } }, React.createElement(CcwIcon, { name: "minus" })),
+            React.createElement("button", { className: "ccw-iconbtn", title: maximized ? "还原窗口" : "最大化窗口", "aria-label": maximized ? "还原窗口" : "最大化窗口", onClick: toggleMaximize }, React.createElement(CcwIcon, { name: maximized ? "restore" : "square" })),
+            React.createElement("button", { className: "ccw-iconbtn", title: "关闭", "aria-label": "关闭", onClick: () => setOpen(false) }, React.createElement(CcwIcon, { name: "x" })),
+          ),
         ),
         maximized ? null : React.createElement("div", { className: "ccw-resize-se", onPointerDown: beginPanelResize, title: "拖拽调整面板尺寸" }),
         React.createElement("div", { className: "ccw-topbar" },
@@ -3063,6 +3162,7 @@ window.__ModuleLoader__.load({
     const inject = ["slots"];
     function apply(ctx) {
       ensureCss();
+      cleanupMermaidTempNodes();   // 清掉旧版失败渲染残留在 body 底部的错误图
       ctx.effect(() => {
         const waiters = [
           ctx.slots.inject("shell.overlay", () =>
@@ -3078,6 +3178,34 @@ window.__ModuleLoader__.load({
 
     exports.apply = apply;
     exports.inject = inject;
+    exports.ClaudeCodeView = ClaudeCodeView;
+    exports.ensureCss = ensureCss;
+
+    // 独立页挂载：注入样式 + 常开全窗口渲染（ReactDOM 由独立页 UMD 提供）
+    function mountStandalone(rootEl) {
+      ensureCss();
+      setOpen(true);
+      const ReactDOM = (typeof window !== "undefined" && window.ReactDOM) || null;
+      if (!rootEl || !ReactDOM || typeof ReactDOM.createRoot !== "function") {
+        if (typeof console !== "undefined") console.error("[dsh-claude-code-web] 独立页缺少 ReactDOM.createRoot，请确认已引入 react-dom UMD");
+        return;
+      }
+      ReactDOM.createRoot(rootEl).render(React.createElement(ClaudeCodeView));
+    }
+    exports.mountStandalone = mountStandalone;
+
     return module.exports;
-  }
-});
+}
+
+// DSH 客户端入口：经模块装载器注册 factory（惰性物化）
+if (typeof window !== "undefined" && window.__ModuleLoader__) {
+  window.__ModuleLoader__.load({
+    id: "dsh-claude-code-web",
+    factory: function (require) { return build(require("react")); }
+  });
+}
+
+// 独立页入口：暴露 build 供 public/index.html 调用
+if (typeof window !== "undefined") {
+  window.__CCW_UI__ = { build: build };
+}

@@ -1682,7 +1682,6 @@ function sendJson(res, obj) {
   res.writeHead(200, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': '*',
   })
   res.end(body)
 }
@@ -1702,6 +1701,26 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+}
+
+// ── 本机信任检查（对齐 DSH 自身 api-request-trust 的边界） ──
+// 只放行 loopback 来源；浏览器跨源/跨站请求一律拒绝。
+// 刻意不校验 Host：桌面端经 IPC 桥接的请求其 Host 可能是合成的，校验会误伤日常使用。
+// 仅依赖浏览器必带的 Origin / Sec-Fetch-Site，既堵住跨源攻击又不影响本机与桌面端。
+function isLoopbackHostname(h) {
+  h = String(h || '').toLowerCase().replace(/^\[|\]$/g, '')
+  return h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '::ffff:127.0.0.1' || /^127\./.test(h)
+}
+function isTrustedRequest(req) {
+  const headers = (req && req.headers) || {}
+  const origin = headers.origin
+  if (origin && origin !== 'null') {
+    let oh = ''
+    try { oh = new URL(origin).hostname } catch (e) { return false }
+    if (!isLoopbackHostname(oh)) return false
+  }
+  if (String(headers['sec-fetch-site'] || '').toLowerCase() === 'cross-site') return false
+  return true
 }
 
 // ── WebSocket 下行推送（取代 SSE + 前端轮询） ─────────────────────
@@ -1753,6 +1772,10 @@ function markStreamDirty(r, am) {
 // WebSocket 升级处理器（由宿主半部经 webServer.registerUpgrade 调用）。
 // 处理器拥有协议握手：这里用 ws 的 handleUpgrade 完成 RFC6455 握手。
 function handleUpgrade(req, socket, head) {
+  if (!isTrustedRequest(req)) {
+    try { socket.destroy() } catch (e) {}
+    return
+  }
   if (!wss) wss = new WebSocketServer({ noServer: true })
   try {
     wss.handleUpgrade(req, socket, head, function (wsClient) {
@@ -1801,6 +1824,12 @@ async function handleRequest(req, res) {
   let u
   try { u = new URL(req.url, 'http://127.0.0.1') } catch (e) { res.writeHead(400); res.end(); return }
 
+  if (!isTrustedRequest(req)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' })
+    res.end('forbidden')
+    return
+  }
+
   // 挂载前缀剥离：/claude/xxx -> /xxx；/claude -> /
   if (BASE_PATH) {
     if (u.pathname === BASE_PATH) u.pathname = '/'
@@ -1812,7 +1841,6 @@ async function handleRequest(req, res) {
     try {
       if (req.method === 'OPTIONS') {
         res.writeHead(204, {
-          'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         })
@@ -1870,6 +1898,20 @@ async function handleRequest(req, res) {
 
   // 静态文件
   const rel = u.pathname === '/' ? 'index.html' : u.pathname.replace(/^\/+/, '')
+
+  // claude-ui.js：直接伺服 lib/client.js（独立页加载同一份 UI 源码，零拷贝、零漂移）
+  if (rel === 'claude-ui.js') {
+    const uiPath = path.join(ROOT, 'lib', 'client.js')
+    return fs.readFile(uiPath, function (err, data) {
+      if (err) { res.writeHead(404); res.end('not found'); return }
+      res.writeHead(200, {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Cache-Control': 'no-store',
+      })
+      res.end(data)
+    })
+  }
+
   const filePath = path.normalize(path.join(ROOT, 'public', rel))
   if (!filePath.startsWith(path.join(ROOT, 'public'))) { res.writeHead(403); res.end('forbidden'); return }
   fs.readFile(filePath, function (err, data) {

@@ -30,6 +30,9 @@
     "lib/client.js",
     "server.cjs",
     "public/mermaid.min.js",
+    "public/index.html",
+    "public/react.production.min.js",
+    "public/react-dom.production.min.js",
     "cordis.patch.yml",
     "DEPLOY.md"
   ],
