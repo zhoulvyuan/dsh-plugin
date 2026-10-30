@@ -2,7 +2,7 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## [未发布]
+## [v0.1.2] - 2026-10-30
 
 本次变更集中在 **dsh-claude-code-web**：工作台可移出 DSH 界面独立使用，并补上本机鉴权。
 
@@ -110,6 +110,7 @@
 - **dsh-md-workspace**：Markdown 工作区插件，内置自包含的 mermaid 渲染、更安全的 URL scheme 过滤与图片净化。
 - **dsh-updchk**：插件更新检查。
 
+[v0.1.2]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.0.2...v0.1.0
 [v0.0.2]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.0.1...v0.0.2
