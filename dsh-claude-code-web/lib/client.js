@@ -2768,6 +2768,8 @@ function build(React, opts) {
       if (minimized) {
         return React.createElement("button", {
           className: "ccw-mini-pill", title: "点击恢复 Claude Code 面板", "data-ccw-theme": dark ? "dark" : "light",
+          // macOS Desktop：浮层必须自己声明窗口区域，否则落在 DSH 页头拖动行上的部分会把点击让给窗口拖拽
+          "data-window-drag-exclude": true,
           onClick: function () { setMinimized(false); },
         },
           React.createElement(ClaudeLogo, { size: 14 }),
@@ -2779,6 +2781,13 @@ function build(React, opts) {
       return React.createElement("div", {
         className: "ccw" + (compact ? " ccw-narrow" : "") + (drawerMode ? " ccw-drawer-mode" : "") + (drawerMode && drawerOpen ? " ccw-drawer-open" : ""),
         "data-ccw-theme": dark ? "dark" : "light",
+        // macOS Desktop（DSH ≥ 0.2.2-rc.1）：只有在 data-window-drag 行或
+        // data-window-drag-controls 范围内的控件才自动获得 no-drag。面板是浮层，
+        // 拖到页头（拖拽行）上方时标题栏按钮会被窗口拖拽区域的命中测试吞掉，
+        // 表现为「在独立窗口打开」/最小化/最大化/关闭全部点了没反应。
+        // 在可见视口元素上显式声明排除，让整个面板矩形不参与窗口拖动区域计算。
+        // 参见 DSH upgrade-guide v0.2.2-rc.1/window-drag-regions。
+        "data-window-drag-exclude": true,
         style: panelStyle,
       },
         React.createElement("div", { className: "ccw-titlebar", onPointerDown: beginDrag, title: maximized ? "" : "拖拽移动面板" },

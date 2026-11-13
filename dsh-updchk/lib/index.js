@@ -480,22 +480,25 @@ function setStage(job, stage, note) {
 /** Run one foreground command via ctx.shell (cross-platform request shape). */
 async function runCmd(ctx, request) {
   const spec = ctx.shell.resolve(request);
-  const res = await ctx.shell.run(spec);
+  // dsh >=0.1.6: the shell seam replaced run/start with a single execute(spec)
+  // returning a handle; foreground = await handle.result().
+  const res = await (await ctx.shell.execute(spec)).result();
   return { code: res.exitCode, out: (res.stdout && res.stdout.text) || "", err: (res.stderr && res.stderr.text) || "" };
 }
 
 // Run one shell command as a background process, draining output into the job.
-function runStream(ctx, job, request, timeoutMs) {
+async function runStream(ctx, job, request, timeoutMs) {
+  let proc;
+  try {
+    const spec = ctx.shell.resolve(request);
+    // dsh >=0.1.6: start(spec) is gone; execute(spec) returns the live handle
+    // (await it — spawn is now async).
+    proc = await ctx.shell.execute(spec);
+  } catch (e) {
+    return { spawnError: errText(e) };
+  }
+  job.proc = proc;
   return new Promise((resolve) => {
-    let proc;
-    try {
-      const spec = ctx.shell.resolve(request);
-      proc = ctx.shell.start(spec);
-    } catch (e) {
-      resolve({ spawnError: errText(e) });
-      return;
-    }
-    job.proc = proc;
     let timedOut = false;
     let stalled = false;
     const deadline = setTimeout(() => {
@@ -566,6 +569,10 @@ function installRequest(installDir, version, reg, usePnpm) {
     command,
     workdir: installDir,
     env: { npm_config_registry: reg },
+    // dsh >=0.1.6 applies its own expiry (default 120s kill) to every execute;
+    // the install is a long cold-cache job, so opt out and keep this plugin's
+    // own 30-min hard timeout + stall watchdog in runStream.
+    onExpiry: "none",
     sandboxPolicy: FULL_ACCESS,
   };
 }

@@ -163,7 +163,11 @@ window.__ModuleLoader__.load({
       const stall = running && progress.stallMs > 45000;
       const activeStageIdx = progress ? STAGES.indexOf(progress.stage) : -1;
 
-      return el("div", { className: "updk-panel" },
+      // macOS Desktop（DSH ≥ 0.2.2-rc.1）：面板右上角（top:12px）正好压在 DSH 页头的
+      // data-window-drag 拖动条上，未声明窗口区域的浮层会把这段点击让给窗口拖拽，
+      // 表现为关闭按钮、顶部那排「检查更新 / 回滚」按钮点了没反应。
+      // 在可见视口元素上显式排除（见 DSH upgrade-guide v0.2.2-rc.1/window-drag-regions）。
+      return el("div", { className: "updk-panel", "data-window-drag-exclude": true },
         el("div", { className: "updk-head" },
           el("span", { className: "updk-title" }, "DSH 检查更新"),
           el("button", { className: "updk-close", onClick: () => setOpen(false), "aria-label": "关闭" }, "×"),

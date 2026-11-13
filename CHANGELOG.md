@@ -2,6 +2,26 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [v0.1.3] - 2026-11-13
+
+本次集中在 **macOS Desktop 下自定义 Client 浮层的窗口拖动区域**：修复 DSH 0.2.2-rc.1 的破坏性变更导致浮层控件点击被窗口拖拽吞掉的问题；同时把线上已运行一段时间的 `dsh-updchk` shell API 迁移回流仓库。
+
+### 修复（Fixes）
+
+- **dsh-claude-code-web：macOS 下「在独立窗口打开」/ 最小化 / 最大化 / 关闭 点了没反应**（面板内容、连接、对话均正常）
+  - 根因：DSH 自 0.2.2-rc.1 起，macOS Desktop 只为 `data-window-drag` 行或 `data-window-drag-controls` 范围内的控件自动排除窗口拖动（此前任意位置匹配的控件与 ARIA role 都会被排除），并明确要求覆盖拖动行的自定义 Client 浮层自己声明区域（官方 upgrade-guide `v0.2.2-rc.1/window-drag-regions`）。本插件的面板是 `shell.overlay` 里的浮层，位置长期位于窗口顶端（`ccwGeom` 为 `left:0, top:0`），标题栏正好压在页头的 `data-window-drag` 拖动条上，点击被窗口拖动区域的命中测试吃掉，`onClick` 根本不触发；标题栏按钮与 JS 拖拽同时失效。
+  - 修复：在面板可见视口 `.ccw` 与最小化胶囊 `.ccw-mini-pill` 上声明 `data-window-drag-exclude`，使整个面板矩形不参与窗口拖动区域；面板自己的标题栏拖拽（JS `pointerdown`）不受影响。
+  - 验证：重启 DSH 后「在独立窗口打开」恢复正常。另用真实 Chrome 加载 `/claude` 独立页确认：页面完整渲染、显示「已连接」、`/claude/api/*` 与 `/claude/api/stream` 均正常，本次故障与插件 HTTP/WebSocket 面无关。
+- **dsh-updchk：检查更新面板的关闭按钮与顶部「检查更新 / 回滚」按钮在 macOS 上点不动**
+  - 同一根因：面板定位 `top:12px`，正好覆盖页头拖动条。
+  - 修复：在 `.updk-panel` 上声明 `data-window-drag-exclude`。
+  - 说明：`dsh-whale` 的浮层为底部对齐（`.whale-layer{bottom:0}`）且唯一可点元素是游动的鲸鱼，不与顶部拖动条重叠，本次无需改动。
+
+### 变更（Changed）
+
+- **dsh-updchk 仓库回流**：把线上插件已在运行的 dsh ≥ 0.1.6 `ctx.shell` 迁移回填进仓库（`ctx.shell.run/start` → `ctx.shell.execute(spec)` + `handle.result()`，后台任务补 `onExpiry: "none"` 以保留插件自己的 30 分钟硬超时与停滞看门狗），避免「重装插件即回退成不兼容实现」。
+- `dsh-claude-code-web` 版本 0.1.2 → 0.1.3；`dsh-updchk` 版本 0.1.0 → 0.1.1。
+
 ## [v0.1.2] - 2026-10-30
 
 本次变更集中在 **dsh-claude-code-web**：工作台可移出 DSH 界面独立使用，并补上本机鉴权。
@@ -110,6 +130,7 @@
 - **dsh-md-workspace**：Markdown 工作区插件，内置自包含的 mermaid 渲染、更安全的 URL scheme 过滤与图片净化。
 - **dsh-updchk**：插件更新检查。
 
+[v0.1.3]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/zhoulvyuan/dsh-plugin/compare/v0.0.2...v0.1.0
