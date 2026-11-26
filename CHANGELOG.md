@@ -2,7 +2,9 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## [Unreleased]
+## [v0.2.0] - 2026-11-26
+
+本次是 v0.1.3 之后的第一次发布：新增三档权限模式与待确认事项（AskUserQuestion）问答链路，并把下行传输从 WebSocket 换成认证同源 HTTP 长轮询，以适配托管 / 桌面 DSH 环境。
 
 ### 新增（Features）
 
@@ -11,8 +13,20 @@
   - 为什么闸门必须放在 hook 而不是只放 `canUseTool`：`~/.claude/settings.json` 里的裸 `"Edit"` / `"Write"` allow 规则会在权限判定阶段直接放行，`canUseTool` 根本不会被调用（本机设置即如此）；`PreToolUse` 在权限判定之前执行，是唯一能覆盖所有配置来源的拦截点。`canUseTool` 里的同名判定保留为第二层。
   - 客户端（client.js）：输入框右下角新增权限模式下拉（沿用模型下拉样式，完全权限用警示色），切到完全权限走 `uiConfirm` 二次确认，运行中切换提示「下一次发送时生效」；切换会话时按服务端记录的模式回填。
   - 顺带修复：切换模式/模型重建 query 时，被中断的旧 query 会把 `Operation aborted` 写回记录并覆盖新 query 状态（`r.query !== q` 的身份判断）；独立运行且 `CLAUDE_BASE_PATH` 带前缀时 WebSocket 升级路径不匹配。
-  - 验证：`node --test test/*.test.cjs` 9 项通过；真实端到端（5 个用例）——只读档 Write 被 hook 拒绝、只读档 Bash 写入被系统沙箱拒绝、工作区档 Write/Bash 区内成功而工作区外被拒、完全权限档工作区外写入成功，且不再出现 `Operation aborted`；Playwright 打开 `/claude` 确认下拉三档、完全权限警示色与确认弹层。
+  - 验证：`node --test` 权限模式 9 项 + 长轮询 8 项共 17 项通过；真实端到端（5 个用例）——只读档 Write 被 hook 拒绝、只读档 Bash 写入被系统沙箱拒绝、工作区档 Write/Bash 区内成功而工作区外被拒、完全权限档工作区外写入成功，且不再出现 `Operation aborted`；Playwright 打开 `/claude` 确认下拉三档、完全权限警示色与确认弹层。
   - 已知边界：只覆盖内置写类工具与 Bash，第三方/MCP 工具自行写盘不在判定范围；Windows 无沙箱后端，受限两档会报错。
+
+### 变更（Changed）
+
+- **dsh-claude-code-web：下行传输改为认证同源 HTTP 长轮询**，不再注册额外 WebSocket 路由（托管 SSO 只转发其自身多路复用协议，额外 upgrade 路由在那种环境下不可用；长轮询在普通浏览器与桌面壳中行为一致）。
+  - 新增 `state-poll.cjs`：epoch + revision 游标、waiter 上限、请求断开清理、方法与停止栅栏、流式更新按 2Hz 合并；异常只返回通用错误码，不泄漏内部信息。对应 `/claude/api/state-poll` 路由；`markDirty` / `markStreamDirty` 分别接 `notify` / `notifyStream`，`disposeServer` 释放全部等待者。
+  - 客户端删除 WebSocket 连接与增量帧逻辑，改为 `startStatePoll`：单次请求 15s 超时、断线按 500ms 起指数退避（封顶 10s）重连、`credentials: 'same-origin'` + `cache: 'no-store'`。
+  - 宿主准入：`ctx.connection.requestRejection` 存在则复用（与核心 API 相同的 Host/Origin 与会话校验），缺失时退回插件自带的 loopback 信任检查；`connection` 不进 `inject`，避免把插件绑死在某个宿主版本上。
+  - 运行数据目录跟随 `DSH_HOME`（缺失时回退 `~/.claude-code-web`）。
+  - 「在独立窗口打开」改为同源 `window.open` + `?ccwDetached=1`：识别 `ztoSurface` 参数的桌面壳以原生窗口打开并共享登录会话，其它环境退化为普通同源标签页；参数值可用 `window.__CCW_DETACH_SURFACE__` 覆盖。
+  - 侧边栏底部入口样式对齐宿主原生条目（未知 CSS 变量走 fallback，不影响其它宿主）。
+  - 子进程 PATH 补全常见安装目录（宿主把后端 PATH 收窄时，CLI 的 Bash 找不到 `npm` / `rg` 等命令）。
+  - 兼容性自检：仅依赖 `ctx.webServer.register({ kind: 'prefix' })`；全新克隆（`git clone` + 依赖安装）后 17 项测试通过、ESM 入口可加载。
 
 ### 修复（Fixes）
 
@@ -20,7 +34,7 @@
   - 根因：工作台把 `AskUserQuestion` 当成普通工具授权，卡片只有「允许 / 始终允许 / 拒绝」，且 `answer-control` 的 allow 分支只回传 `{behavior:'allow', updatedInput: 原input}`，从不带 `answers`。Claude Code CLI 的 `AskUserQuestion.checkPermissions` 要求宿主在 `updatedInput.answers` 里回传用户选择；缺少 answers 会生成 `tool_result: "The user did not answer the questions."`，模型随即按推荐值继续（实测两个会话均如此）。
   - 修复（server.cjs）：识别 `AskUserQuestion` 并在 control 消息上带 `kind:'ask'` / `questions`；新增 `buildQuestionUpdatedInput()` 按 CLI 契约清洗并回传 `answers`；无 answers 的 allow 直接拒绝、「始终允许」对提问禁用、提问永不进入 sessionRules（避免后续提问被静默放行）；提交结果回写卡片便于回溯。
   - 修复（client.js）：新增 `QuestionCard`，把每个问题渲染成单选 / 多选 / Other 自定义输入 / 文本输入，校验全部作答后提交；未回答的待确认事项以 sticky 卡片置顶（不受消息分页影响），并从「全部允许」批量操作中排除；明确提供「跳过，不回答」并提示后果。
-  - 验证：两文件 `node --check` 通过；`buildQuestionUpdatedInput` 纯函数断言；以 `Module._compile` 注入模块作用域验证 `makeCanUseTool` → `answerControl` 全链路（无 answers 不放行、带 answers 回传契约、普通工具授权行为不变）。补丁同时以三路合并叠加到本机运行中的插件副本，保留其 state-poll / PATH 独有改动。
+  - 验证：两文件 `node --check` 通过；`buildQuestionUpdatedInput` 纯函数断言；以 `Module._compile` 注入模块作用域验证 `makeCanUseTool` → `answerControl` 全链路（无 answers 不放行、带 answers 回传契约、普通工具授权行为不变）。相关改动已与本机运行副本对齐后进入仓库。
 - **dsh-claude-code-web：待确认选择框高度太窄、选项挤在内部滚动区（会话【代码开发-需求变更】兔喜快递柜销售实测反馈）**
   - 根因：待确认卡片放在消息滚动区 `ccw-msgs` 里并设 `max-height:62%` + `overflow-y:auto` + `position:sticky`，实际可视高度被压到面板消息区的 62%（约 150–340px），再扣掉头部/提示/按钮后，1 个带 3 个长描述选项的问题（自然高度约 312px）只能在很矮的内部区域里滚动，选项密集难以点选。
   - 修复（client.js）：新增 `AskBar` 组件，把待确认事项从 `ccw-msgs` 移到 `ccw-main` 的独立层（`flex:none`，不再 sticky、不再按消息区百分比限高）；高度由内容决定，仅极端长内容才在 `min(72vh, 560px)` 内滚动；支持「收起 / 展开」，收起后只留一行标题，便于查看对话。
