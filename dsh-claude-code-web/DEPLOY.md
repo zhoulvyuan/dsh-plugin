@@ -1,6 +1,6 @@
 # dsh-claude-code-web — 部署清单
 
-本插件把 **Claude Code** 包装成 DSH 原生插件（宿主机进程内嵌 HTTP/WebSocket 服务 + 浏览器客户端悬浮面板）。
+本插件把 **Claude Code** 包装成 DSH 原生插件（宿主机进程内嵌 HTTP 服务 + 长轮询下行 + 浏览器客户端悬浮面板）。
 
 > 前提：目标机**必须**已安装 **DSH** 与 **Claude Code CLI**（见下文），插件不自带这两者。
 
@@ -9,7 +9,7 @@
 | 依赖 | 版本要求 | 说明 |
 |---|---|---|
 | Node.js | **>= 18** | 运行 DSH 与 SDK |
-| DSH | 含 `webServer.registerUpgrade`（WebSocket 上行契约） | 插件挂载到 DSH 的 `/claude` 前缀 |
+| DSH | 含 `ctx.webServer.register({ kind: 'prefix' })` | 插件挂载到 DSH 的 `/claude` 前缀 |
 | Claude Code CLI | 与 `@anthropic-ai/claude-agent-sdk@0.3.241` 兼容的版本区间 | 全局安装 `npm i -g @anthropic-ai/claude-code` |
 | Anthropic 凭据 | - | 需已登录（`claude` 首次运行登录 / 配置 API Key） |
 
@@ -70,10 +70,10 @@ tar xzf claude-dotfile.tgz -C ~
 包含内容：
 - `~/.claude/projects/` — 会话历史（插件侧边栏读取）
 - `~/.claude/commands/`、`~/.claude/agents/`、`~/.claude/skills/` — 自定义命令/代理/技能（插件 slash 列表）
-- `~/.claude/settings.json` — 权限模式、允许列表（影响插件授权弹窗行为）
+- `~/.claude/settings.json` — 允许 / 拒绝规则（影响插件授权弹窗行为；插件自身的三档权限模式不受它影响）
 - 凭据（如 `.credentials.json`）— **建议在目标机重新 `claude` 登录**，避免迁移敏感文件
 
-> 不同权限模式的行为差异：目标机若为 `bypassPermissions`（自动允许），插件的「请求授权」卡片不会出现，属预期。
+> 权限模式说明：插件在输入框提供「仅可查看 / 工作区内修改 / 完全权限」三档，由服务端 hook 与系统沙箱执行，**优先于** `~/.claude/settings.json` 里的 allow 规则（包括裸的 `Edit` / `Write`）。目标机若不具备沙箱后端（Linux 缺 bubblewrap、Windows），受限两档会直接报错而不是降级为无限制，此时只能用「完全权限」。
 
 ## 五、首次启动自检
 
@@ -85,7 +85,7 @@ tar xzf claude-dotfile.tgz -C ~
 
 ## 六、安全提示
 
-插件暴露的 `/claude/api/*`（send / answer-control / open-path 等）与 WebSocket 下行 `/claude/api/stream` 内置**本机 loopback 信任检查**：
+插件暴露的 `/claude/api/*`（send / answer-control / open-path 等）与长轮询下行 `/claude/api/state-poll` 内置**本机 loopback 信任检查**：
 
 - 仅放行 `127.0.0.1` / `localhost` / `::1` 来源的请求；
 - 带浏览器 `Origin` 头且非 loopback 的跨源请求一律 403；

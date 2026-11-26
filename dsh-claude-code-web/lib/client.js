@@ -1,3 +1,60 @@
+// Same-origin finite HTTP requests retain the desktop's authenticated fetch bridge.
+// Never derive a URL pointing at the private backend or copy cookies into URLs.
+function startStatePoll(options) {
+    const fetcher = options.fetch || globalThis.fetch.bind(globalThis);
+    const later = options.setTimeout || setTimeout;
+    const cancel = options.clearTimeout || clearTimeout;
+    let alive = true;
+    let revision = "";
+    let controller = null;
+    let timer = null;
+    let deadline = null;
+    let attempt = 0;
+    let connected = false;
+
+    async function poll() {
+        if (!alive) return;
+        const current = new AbortController();
+        controller = current;
+        deadline = later(() => current.abort(), 15000);
+        let delay = 80;
+        try {
+            const response = await fetcher(options.url + (revision ? "?revision=" + encodeURIComponent(revision) : ""), {
+                method: "GET", cache: "no-store", credentials: "same-origin", signal: current.signal,
+            });
+            if (!response.ok) throw new Error("state_http_" + response.status);
+            const data = await response.json();
+            if (!alive) return;
+            if (!data || data.ok !== true || typeof data.revision !== "string" ||
+                (data.unchanged !== true && (!data.state || typeof data.state !== "object"))) {
+                throw new Error("state_protocol_error");
+            }
+            if (data.unchanged !== true) options.onState(data.state);
+            revision = data.revision;
+            if (!connected) options.onConnected();
+            connected = true;
+            attempt = 0;
+        } catch (_) {
+            if (!alive) return;
+            connected = false;
+            attempt += 1;
+            options.onDisconnected(attempt);
+            delay = Math.min(10000, 500 * Math.pow(2, Math.min(attempt - 1, 5))) + Math.floor(Math.random() * 250);
+        } finally {
+            if (deadline !== null) { cancel(deadline); deadline = null; }
+            if (controller === current) controller = null;
+        }
+        if (alive) timer = later(() => { timer = null; void poll(); }, delay);
+    }
+    void poll();
+    return function stop() {
+        alive = false;
+        if (timer !== null) { cancel(timer); timer = null; }
+        if (deadline !== null) { cancel(deadline); deadline = null; }
+        if (controller) { controller.abort(); controller = null; }
+    };
+}
+
 function build(React, opts) {
     opts = opts || {};
     var module = { exports: {} };
@@ -7,6 +64,16 @@ function build(React, opts) {
     const API = "/claude/api";
     const STANDALONE = opts.standalone === true;
 
+    // 权限模式（与 DSH 三档同名同义）。判定全在服务端（宿主闸门 + SDK sandbox），
+    // 客户端只负责选择与危险档位的二次确认。
+    const SANDBOX_MODES = [
+      { id: "read-only", label: "仅可查看", title: "只读：不能修改文件；Bash 里的写入会被系统沙箱拒绝" },
+      { id: "workspace-write", label: "工作区内修改", title: "只能修改当前工作区内的文件；工作区外由沙箱与闸门拦截" },
+      { id: "danger-full-access", label: "完全权限", title: "不做限制，可读写任意位置（危险操作仍会弹授权卡）" },
+    ];
+    const DEFAULT_SANDBOX_MODE = "danger-full-access";
+    const MODE_LABEL = SANDBOX_MODES.reduce(function (m, x) { m[x.id] = x.label; return m; }, {});
+
     // 全局入口：侧边栏底部按钮（sidebar.footer.action）<-> 悬浮面板（shell.overlay）共享显隐状态
     let panelOpen = STANDALONE;
     const openListeners = new Set();
@@ -15,14 +82,77 @@ function build(React, opts) {
     const setOpen = (v) => { if (panelOpen === v) return; panelOpen = v; for (const l of [...openListeners]) l(); };
     const usePanelOpen = () => React.useSyncExternalStore(subscribeOpen, getOpen);
 
-    // 弹出到独立窗口/标签页：优先 DSH transport 基址（桌面端），否则同源相对地址
-    function openStandalone() {
-      const base = (typeof globalThis !== "undefined" && globalThis.__DSH_TRANSPORT__ && globalThis.__DSH_TRANSPORT__.streamBaseUrl)
-        || (typeof document !== "undefined" && document.baseURI)
-        || (typeof location !== "undefined" && location.origin);
-      let url;
-      try { url = new URL("/claude", base).href; } catch (e) { url = "/claude"; }
-      try { window.open(url, "_blank", "noopener"); } catch (e) {}
+    // ------------------------------------------------------------------
+    // 独立窗口（detached window）
+    //
+    // 部分桌面壳支持「同源独立窗口」：对同源 URL 调 window.open 并带约定的 surface
+    // 参数时，宿主会新建一个原生窗口，并与主窗口共用同一份登录会话；普通浏览器里它
+    // 就是一个同源标签页（Cookie 同样共享）。这里打开插件自带的独立页 /claude/：同一
+    // 份 client.js 以 standalone 模式全窗口渲染工作台，不加载整套 DSH 客户端，也不需要
+    // 新开一套后端。surface 参数值由宿主约定，其它环境会忽略它。
+    // ------------------------------------------------------------------
+    const DETACH_PARAM = "ccwDetached";
+    // surface 参数值由宿主约定（默认值只对识别它的桌面壳生效，其它环境忽略）；
+    // 不同宿主可用 window.__CCW_DETACH_SURFACE__ 覆盖。
+    const DETACH_SURFACE_VALUE = (typeof globalThis !== "undefined" && globalThis.__CCW_DETACH_SURFACE__) || "sidebar";
+    const DETACH_CHANNEL_NAME = "dsh-claude-code-web/detach";
+    const IS_DETACHED_WINDOW = typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get(DETACH_PARAM) === "1";
+
+    let detachChannel = null;
+    if (typeof window !== "undefined" && typeof BroadcastChannel === "function") {
+      try { detachChannel = new BroadcastChannel(DETACH_CHANNEL_NAME); } catch (_) {}
+    }
+    function detachBroadcast(type) {
+      if (detachChannel) { try { detachChannel.postMessage({ type: type }); } catch (_) {} }
+    }
+    function detachedWindowUrl() {
+      const url = new URL(window.location.href);
+      url.pathname = "/claude/";
+      url.search = "";
+      url.hash = "";
+      url.searchParams.set("ztoSurface", DETACH_SURFACE_VALUE);
+      url.searchParams.set(DETACH_PARAM, "1");
+      try { url.searchParams.set("ccwTheme", detectDark() ? "dark" : "light"); } catch (_) {}
+      return url.toString();
+    }
+    // 独立页的 index.html 默认写死 light；这里在渲染前按主窗口主题改回来。
+    if (IS_DETACHED_WINDOW && typeof document !== "undefined") {
+      const theme = new URLSearchParams(window.location.search).get("ccwTheme");
+      if (theme === "dark" || theme === "light") {
+        try {
+          document.documentElement.setAttribute("data-theme", theme);
+          document.body.style.background = theme === "dark" ? "#1C1B19" : "#FBFAF7";
+        } catch (_) {}
+      }
+    }
+    function openDetachedWindow() {
+      try { window.open(detachedWindowUrl(), "_blank"); } catch (_) {}
+    }
+    let detachClosedSent = false;
+    function broadcastDetachedClosed() {
+      if (detachClosedSent) return;
+      detachClosedSent = true;
+      detachBroadcast("detached-closed");
+    }
+    function returnToMain() {
+      broadcastDetachedClosed();
+      try { if (window.opener && !window.opener.closed) window.opener.focus(); } catch (_) {}
+      try { window.close(); } catch (_) {}
+      // 少数桌面壳不允许脚本关窗：隐藏 React 根节点（不销毁 DOM，避免仍在跑的
+      // 长轮询触发渲染错误），并显示一句提示，避免留下一个还在跑的重复面板。
+      setTimeout(function () {
+        if (!window.closed && typeof document !== "undefined") {
+          try {
+            const root = document.getElementById("root");
+            if (root) root.style.display = "none";
+            const tip = document.createElement("div");
+            tip.textContent = "工作台已回到主窗口，可以关闭此窗口。";
+            tip.style.cssText = "font:14px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif;color:#8A877E;display:flex;align-items:center;justify-content:center;height:100vh;margin:0";
+            document.body.appendChild(tip);
+          } catch (_) {}
+        }
+      }, 500);
     }
 
     // ------------------------------------------------------------------
@@ -73,9 +203,15 @@ function build(React, opts) {
 .ccw-close:hover { background:var(--ccw-surface-3); }
 .ccw-max { border:none; background:transparent; color:inherit; cursor:pointer; font-size:12px; line-height:1; padding:5px 8px; border-radius:6px; white-space:nowrap; }
 .ccw-max:hover { background:var(--ccw-surface-3); }
-.ccw-toggle { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 9px; border:1px solid transparent; border-radius:7px; background:transparent; color:inherit; cursor:pointer; font-size:12px; }
-.ccw-toggle:hover { background:var(--ccw-surface-3); }
-.ccw-toggle-active { background:var(--ccw-accent-soft); color:var(--ccw-accent); }
+/* 侧边栏底部入口：尺寸、内边距、行高、圆角与宿主原生条目（产品工作台）逐项对齐，
+   两者同处一行时才不会一个偏小一个偏大；标签只在行内宽度够时出现，不够就收成图标。 */
+.ccw-toggle { display:flex; align-items:center; flex:0 0 auto; gap:8px; box-sizing:border-box; min-height:36px; margin:4px 2px; padding:7px 8px; border:0; border-radius:var(--dsw-radius-md,8px); background:transparent; color:var(--dsw-alias-label-primary,inherit); font:inherit; line-height:22px; cursor:pointer; -webkit-app-region:no-drag; --ccw-toggle-accent:#C96442; --ccw-toggle-soft:rgba(201,100,66,.14); }
+body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle-soft:rgba(224,138,109,.18); }
+.ccw-toggle:hover { background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10)); }
+.ccw-toggle:focus-visible { outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary,#2f6bff)); outline-offset:-2px; }
+.ccw-toggle-active, .ccw-toggle-active:hover { background:var(--ccw-toggle-soft); color:var(--ccw-toggle-accent); }
+.ccw-toggle-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ccw-toggle[data-icon-only] { flex:none; justify-content:center; width:36px; height:36px; padding:0; }
 .ccw-topbar { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--ccw-border); flex:none; }
 .ccw-body { flex:1; display:flex; min-height:0; }
 .ccw-sidebar { flex:none; overflow-y:auto; border-right:1px solid var(--ccw-border); padding:8px; }
@@ -187,6 +323,28 @@ function build(React, opts) {
 .ccw-ctl-head { font-weight:600; margin-bottom:6px; }
 .ccw-ctl-input { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; background:var(--ccw-code); border-radius:6px; padding:6px 8px; white-space:pre-wrap; max-height:180px; overflow-y:auto; margin-bottom:8px; }
 .ccw-ctl-actions { display:flex; gap:8px; }
+/* AskUserQuestion：待确认事项卡片（置顶 sticky，避免被长会话分页淹没） */
+/* AskUserQuestion：独立的待确认事项层（在消息区之外，高度由内容决定，不再被消息流压窄） */
+.ccw-askbar { flex:none; align-self:stretch; display:flex; flex-direction:column; gap:8px; margin:8px 10px 2px; padding:10px 12px; border:1px solid var(--ccw-accent); border-radius:10px; background:var(--ccw-surface); box-shadow:0 4px 14px rgba(0,0,0,.12); max-height:min(72vh, 560px); overflow-y:auto; }
+.ccw-askbar.collapsed { flex-direction:row; align-items:center; gap:6px; padding:6px 10px; }
+.ccw-askbar-head { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; }
+.ccw-askbar-title { flex:1; }
+.ccw-askbar-tip { font-size:11px; color:var(--ccw-text-3); line-height:1.5; }
+.ccw-ask-card { align-self:stretch; max-width:100%; border:1px solid var(--ccw-border-strong); border-radius:8px; padding:10px 12px; background:var(--ccw-surface-2); }
+.ccw-ask-q { border:1px solid var(--ccw-border); border-radius:8px; padding:10px 12px; background:var(--ccw-surface); }
+.ccw-ask-q + .ccw-ask-q { margin-top:8px; }
+.ccw-ask-qh { font-size:11px; font-weight:600; color:var(--ccw-accent); margin-bottom:3px; }
+.ccw-ask-qt { font-size:12.5px; font-weight:600; margin-bottom:8px; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.5; }
+.ccw-ask-opts { display:flex; flex-direction:column; gap:5px; }
+.ccw-ask-opt { display:flex; align-items:flex-start; gap:9px; font-size:12.5px; padding:8px 10px; border:1px solid var(--ccw-border); border-radius:8px; cursor:pointer; line-height:1.55; background:var(--ccw-surface); }
+.ccw-ask-opt:hover { background:var(--ccw-selected); border-color:var(--ccw-accent); }
+.ccw-ask-opt.sel { background:var(--ccw-accent-soft); border-color:var(--ccw-accent); }
+.ccw-ask-opt input { flex:none; margin-top:2px; width:15px; height:15px; accent-color:var(--ccw-accent); }
+.ccw-ask-opt-desc { display:block; font-size:11.5px; color:var(--ccw-text-2); margin-top:2px; }
+.ccw-ask-other { margin-top:8px; }
+.ccw-ask-foot { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.ccw-ask-err { font-size:11px; color:var(--ccw-danger); }
+.ccw-ask-summary { font-size:11px; color:var(--ccw-text-3); white-space:pre-wrap; overflow-wrap:anywhere; }
 .ccw-pop-list { display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; margin-bottom:6px; border:1px solid var(--ccw-border); border-radius:8px; padding:4px; background:var(--ccw-surface-2); }
 .ccw-pop-item { display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:6px; cursor:pointer; font-size:12px; white-space:nowrap; overflow:hidden; }
 .ccw-pop-item:hover, .ccw-pop-item.sel { background:var(--ccw-selected); }
@@ -411,6 +569,11 @@ function build(React, opts) {
 .ccw-composer .ccw-model { flex:none; height:26px; max-width:132px; appearance:none; -webkit-appearance:none; border:1px solid var(--ccw-border); border-radius:6px; background-color:var(--ccw-surface); background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%238A877E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 7px center; padding:0 22px 0 8px; font-size:11px; color:var(--ccw-text-2); cursor:pointer; }
 .ccw-composer .ccw-model:hover { border-color:var(--ccw-border-strong); color:var(--ccw-text); }
 .ccw-composer .ccw-model:focus, .ccw-composer .ccw-model:focus-visible { outline:none; border-color:var(--ccw-accent); box-shadow:0 0 0 3px var(--ccw-accent-soft); }
+/* 权限模式下拉：沿用模型下拉外观，宽度按最长标签放宽；完全权限用警示色常驻提示 */
+.ccw-composer .ccw-mode { max-width:152px; }
+.ccw-composer .ccw-mode.ccw-mode-danger { color:var(--ccw-warn); border-color:var(--ccw-warn); }
+.ccw-composer .ccw-mode.ccw-mode-danger:hover { color:var(--ccw-warn); border-color:var(--ccw-warn); }
+.ccw-narrow .ccw-composer .ccw-mode { max-width:112px; }
 .ccw-sendbtn { flex:none; width:28px; height:28px; border-radius:50%; border:1px solid var(--ccw-accent); background:var(--ccw-accent); color:var(--ccw-accent-fg); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:background .12s, border-color .12s; }
 .ccw-sendbtn:hover { background:var(--ccw-accent-hover); border-color:var(--ccw-accent-hover); }
 .ccw-stopbtn { flex:none; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ccw-border); background:var(--ccw-surface); color:var(--ccw-text-2); display:inline-flex; align-items:center; justify-content:center; gap:5px; font:inherit; font-size:11px; cursor:pointer; }
@@ -1267,6 +1430,171 @@ function build(React, opts) {
       return out;
     }
 
+    // AskUserQuestion：把「待确认事项」渲染成可点选的问题表单。
+    // 旧版只有「允许 / 始终允许 / 拒绝」三个权限按钮，且 allow 不回传 answers，
+    // 导致 CLI 判定「The user did not answer the questions.」→ 模型反馈「未收到选择」。
+    // 现在提交时携带 answers，服务端按 CLI 契约构造 updatedInput 回传。
+    const CCW_OTHER = "__ccw_other__";
+    function QuestionCard({ msg, hl, dataIndex, query }) {
+      const questions = Array.isArray(msg.questions) ? msg.questions : [];
+      const answered = msg.decision != null;
+      const [sel, setSel] = React.useState({});
+      const [other, setOther] = React.useState({});
+      const [err, setErr] = React.useState("");
+      const [busy, setBusy] = React.useState(false);
+      function qKey(q, i) { return String((q && q.question) || ("q" + i)); }
+      function putSel(k, v) { setSel(function (p) { const n = Object.assign({}, p); n[k] = v; return n; }); }
+      function putOther(k, v) { setOther(function (p) { const n = Object.assign({}, p); n[k] = v; return n; }); }
+      function toggleMulti(k, label, checked) {
+        const cur = Array.isArray(sel[k]) ? sel[k] : [];
+        putSel(k, checked ? cur.concat([label]) : cur.filter(function (x) { return x !== label; }));
+      }
+      function buildAnswers() {
+        const out = {}; const missing = [];
+        questions.forEach(function (q, qi) {
+          const k = qKey(q, qi);
+          const v = sel[k];
+          const ot = String(other[k] || "").trim();
+          let ans;
+          if (Array.isArray(v)) {
+            ans = v.filter(function (x) { return x !== CCW_OTHER; });
+            if (v.indexOf(CCW_OTHER) !== -1 && ot) ans.push(ot);
+          } else if (v === CCW_OTHER) {
+            ans = ot;
+          } else {
+            ans = typeof v === "string" ? v.trim() : "";
+          }
+          if (!ans || (Array.isArray(ans) && ans.length === 0)) missing.push(qi + 1);
+          else out[k] = ans;
+        });
+        return { answers: out, missing: missing };
+      }
+      function submit() {
+        if (busy || answered) return;
+        const b = buildAnswers();
+        if (b.missing.length) { setErr("还有 " + b.missing.length + " 项未作答（第 " + b.missing.join("、") + " 项）"); return; }
+        setErr(""); setBusy(true);
+        api("answer-control", { requestId: msg.requestId, behavior: "allow", answers: b.answers }).then(function (res) {
+          setBusy(false);
+          if (!res || res.ok === false) setErr((res && res.error) || "提交失败，请重试");
+        });
+      }
+      function skip() {
+        if (busy || answered) return;
+        setErr(""); setBusy(true);
+        api("answer-control", { requestId: msg.requestId, behavior: "deny", message: "用户跳过待确认事项，未作答" }).then(function (res) {
+          setBusy(false);
+          if (!res || res.ok === false) setErr((res && res.error) || "操作失败，请重试");
+        });
+      }
+      function renderQ(q, qi) {
+        const k = qKey(q, qi);
+        const opts = Array.isArray(q.options) ? q.options : [];
+        const multi = !!q.multiSelect;
+        const freeText = !opts.length || q.kind === "text" || q.kind === "number";
+        const v = sel[k];
+        const children = [];
+        if (q.header) children.push(React.createElement("div", { className: "ccw-ask-qh", key: "h" }, String(q.header)));
+        children.push(React.createElement("div", { className: "ccw-ask-qt", key: "t" }, String(q.question || "")));
+        if (freeText) {
+          children.push(React.createElement("input", {
+            key: "free", className: "ccw-dialog-input",
+            type: q.kind === "number" ? "number" : "text",
+            placeholder: "输入答案…",
+            value: typeof v === "string" && v !== CCW_OTHER ? v : "",
+            disabled: answered || busy,
+            onChange: function (e) { putSel(k, e.target.value); },
+          }));
+        } else {
+          const inputName = "ccw-ask-" + (msg.requestId || "x") + "-" + qi;
+          const optNodes = opts.map(function (o, oi) {
+            const label = String((o && o.label) || ("选项" + (oi + 1)));
+            const checked = multi ? (Array.isArray(v) && v.indexOf(label) !== -1) : v === label;
+            return React.createElement("label", { className: "ccw-ask-opt" + (checked ? " sel" : ""), key: "o" + oi },
+              React.createElement("input", {
+                type: multi ? "checkbox" : "radio", name: inputName,
+                checked: checked, disabled: answered || busy,
+                onChange: function () { if (multi) toggleMulti(k, label, !checked); else putSel(k, label); },
+              }),
+              React.createElement("span", null, label,
+                o && o.description ? React.createElement("span", { className: "ccw-ask-opt-desc" }, String(o.description)) : null));
+          });
+          const otherChecked = multi ? (Array.isArray(v) && v.indexOf(CCW_OTHER) !== -1) : v === CCW_OTHER;
+          optNodes.push(React.createElement("label", { className: "ccw-ask-opt" + (otherChecked ? " sel" : ""), key: "other" },
+            React.createElement("input", {
+              type: multi ? "checkbox" : "radio", name: inputName,
+              checked: otherChecked, disabled: answered || busy,
+              onChange: function () { if (multi) toggleMulti(k, CCW_OTHER, !otherChecked); else putSel(k, CCW_OTHER); },
+            }),
+            React.createElement("span", null, "其他（自定义输入）")));
+          if (otherChecked) {
+            optNodes.push(React.createElement("input", {
+              key: "other-text", className: "ccw-dialog-input ccw-ask-other",
+              type: "text", placeholder: "输入自定义答案…", value: String(other[k] || ""),
+              disabled: answered || busy,
+              onChange: function (e) { putOther(k, e.target.value); },
+            }));
+          }
+          children.push(React.createElement("div", { className: "ccw-ask-opts", key: "opts" }, optNodes));
+        }
+        return React.createElement("div", { className: "ccw-ask-q", key: "q" + qi }, children);
+      }
+      const summary = msg.answers && typeof msg.answers === "object"
+        ? Object.keys(msg.answers).map(function (k) {
+            const v = msg.answers[k];
+            return k + " → " + (Array.isArray(v) ? v.join("、") : String(v));
+          }).join("\n")
+        : "";
+      return React.createElement("div", { className: "ccw-ask-card" + (hl ? " ccw-search-hit" : ""), "data-ccw-i": dataIndex },
+        React.createElement("div", { className: "ccw-ctl-head" },
+          React.createElement(CcwIcon, { name: "alert", size: 14, className: "ccw-ctl-icon" }),
+          "待确认事项" + (questions.length ? "（" + questions.length + " 项）" : "")),
+        !answered ? React.createElement("div", { className: "ccw-askbar-tip", style: { marginBottom: 6 } },
+          "请选择后提交；不提交或超时，模型将按推荐值继续。") : null,
+        questions.map(renderQ),
+        answered
+          ? React.createElement("div", { className: "ccw-ask-foot" },
+              React.createElement("span", { className: "ccw-dim" }, msg.decision === "deny" ? "已跳过（未作答）" : "已提交选择"),
+              summary ? React.createElement("div", { className: "ccw-ask-summary" }, summary) : null)
+          : React.createElement("div", { className: "ccw-ask-foot" },
+              React.createElement("button", { className: "ccw-btn small primary", disabled: busy, onClick: submit }, busy ? "提交中…" : "提交选择"),
+              React.createElement("button", { className: "ccw-btn small", disabled: busy, onClick: skip }, "跳过，不回答"),
+              err ? React.createElement("span", { className: "ccw-ask-err" }, err) : null)
+      );
+    }
+
+    // 待确认事项独立层：放在消息区之外，高度由内容决定，不再被消息流的百分比上限压窄。
+    // 支持收起/展开，避免长问题挡住对话；提交或跳过后随 pendingAsks 清空而自动消失。
+    function AskBar({ items, messages }) {
+      const [collapsed, setCollapsed] = React.useState(false);
+      if (!items || !items.length) return null;
+      const totalQ = items.reduce(function (n, m) {
+        return n + (Array.isArray(m.questions) ? m.questions.length : 0);
+      }, 0);
+      return React.createElement("div", { className: "ccw-askbar" + (collapsed ? " collapsed" : "") },
+        React.createElement("div", { className: "ccw-askbar-head" },
+          React.createElement(CcwIcon, { name: "alert", size: 14 }),
+          React.createElement("span", { className: "ccw-askbar-title" },
+            "待确认事项（" + items.length + " 项 / " + totalQ + " 个问题）"),
+          React.createElement("div", { style: { flex: 1 } }),
+          React.createElement("button", {
+            className: "ccw-btn small", type: "button",
+            title: collapsed ? "展开待确认事项" : "收起待确认事项，查看对话",
+            onClick: function () { setCollapsed(function (v) { return !v; }); },
+          }, collapsed ? "展开" : "收起")),
+        collapsed ? null : React.createElement(React.Fragment, null,
+          React.createElement("div", { className: "ccw-askbar-tip" },
+            "选择后点「提交选择」；不提交或超时，Claude Code 会判定「未收到选择」，模型将按推荐值继续。"),
+          items.map(function (m) {
+            return React.createElement(QuestionCard, {
+              key: "ask-" + m.requestId, msg: m, hl: false,
+              dataIndex: messages.indexOf(m), query: "",
+            });
+          })
+        )
+      );
+    }
+
     function ControlCard({ msg, hl, dataIndex, query }) {
       const [expanded, setExpanded] = React.useState(false);
       const answered = msg.decision != null;
@@ -1307,6 +1635,9 @@ function build(React, opts) {
         && a.msg.decision === b.msg.decision
         && a.msg.result === b.msg.result
         && a.msg.isError === b.msg.isError
+        && a.msg.kind === b.msg.kind
+        && a.msg.questions === b.msg.questions
+        && a.msg.answers === b.msg.answers
         && a.msg.sub === b.msg.sub
         && a.msg.meta === b.msg.meta
         && a.live === b.live
@@ -1448,6 +1779,9 @@ function build(React, opts) {
           React.createElement(CcwIcon, { name: msg.isError ? "alert" : "check", size: 13, className: "ccw-result-icon" }), highlightNodes(msg.text, query));
       }
       if (msg.role === "control") {
+        if (msg.kind === "ask" && Array.isArray(msg.questions)) {
+          return React.createElement(QuestionCard, { msg: msg, hl: hl, dataIndex: dataIndex, query: query });
+        }
         return React.createElement(ControlCard, { msg: msg, hl: hl, dataIndex: dataIndex, query: query });
       }
       return null;
@@ -1806,6 +2140,9 @@ function build(React, opts) {
       const [catalog, setCatalog] = React.useState(null);
       const [models, setModels] = React.useState([]);
       const [modelId, setModelId] = React.useState("");
+      // 权限模式：默认「完全权限」= 旧版行为（不限制、危险操作弹卡），避免静默改变既有体验
+      const [mode, setMode] = React.useState(DEFAULT_SANDBOX_MODE);
+      const lastModeSyncRef = React.useRef("");
       const [collapsed, setCollapsed] = React.useState(() => new Set());
       const [conn, setConn] = React.useState(false);
       const [reconn, setReconn] = React.useState(0);
@@ -2075,94 +2412,18 @@ function build(React, opts) {
         fetch(API + "/models", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (d) { setModels((d && d.models) || []); }).catch(function () {});
       }, []);
 
-      // WebSocket 下行 + 指数退避重连（面板关闭时不连）
+      // Authenticated same-origin long-poll; one bounded request while open.
       React.useEffect(() => {
         if (!open) return;
-        stickRef.current = true; // 打开面板时回到“跟随底部”
-        let alive = true;
-        let ws = null;
-        let attempt = 0;
-        let reconnectTimer = null;
-
-        function schedule() {
-          if (!alive || reconnectTimer) return;
-          // 500ms 起步 ×2，封顶 10s，外加抖动
-          const base = Math.min(10000, 500 * Math.pow(2, attempt));
-          const delay = base + Math.floor(Math.random() * 250);
-          attempt += 1;
-          setReconn(attempt);
-          reconnectTimer = setTimeout(function () { reconnectTimer = null; connect(); }, delay);
-        }
-
-        // 增量流式帧：只更新正在输出的那条消息，避免整包快照引发的整树重渲染
-        function applyFrame(d) {
-          if (d && d.type === "stream-delta" && d.delta) {
-            setSnap(function (prev) {
-              if (!prev || !prev.active || prev.active.key !== d.delta.key) return prev;
-              const msgs = prev.active.messages || [];
-              let idx = -1;
-              for (let i = msgs.length - 1; i >= 0; i--) {
-                if (msgs[i].messageKey === d.delta.messageKey) { idx = i; break; }
-              }
-              if (idx === -1) return prev; // 尚未收到含该消息的快照，等下一帧全量兜底
-              const nm = Object.assign({}, msgs[idx], { text: d.delta.text, thinking: d.delta.thinking });
-              const nmsgs = msgs.slice();
-              nmsgs[idx] = nm;
-              return Object.assign({}, prev, { active: Object.assign({}, prev.active, { messages: nmsgs }) });
-            });
-            return;
-          }
-          setSnap(d);
-        }
-
-        function connect() {
-          if (!alive) return;
-          // 连接地址必须用 DSH 注入的 transport 基址：桌面端主窗口是从自定义协议
-          // dsh-app://app/ 加载的，window.location.host 会是 "app"，直接拼出的
-          // ws://app/... 连不上。官方客户端同样用 __DSH_TRANSPORT__.streamBaseUrl
-          // （见 @deepseek-ai/dsh-api-gateway/lib/client.js）。取不到时退回原逻辑。
-          let url;
-          try {
-            const transport = globalThis.__DSH_TRANSPORT__;
-            const base = (transport && transport.streamBaseUrl) || document.baseURI;
-            const u = new URL(API + "/stream", base);
-            u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
-            url = u.href;
-          } catch (e) {
-            let proto = "ws";
-            try { if (window.location.protocol === "https:") proto = "wss"; } catch (e2) {}
-            url = proto + "://" + window.location.host + API + "/stream";
-          }
-          let sock;
-          try { sock = new WebSocket(url); } catch (e) {
-            if (alive) { setConn(false); schedule(); }
-            return;
-          }
-          ws = sock;
-          sock.onopen = function () {
-            if (alive) { setConn(true); setReconn(0); attempt = 0; refetchCatalog(); }
-          };
-          sock.onmessage = function (ev) {
-            if (!alive) return;
-            try { applyFrame(JSON.parse(ev.data)); } catch (e) {}
-          };
-          sock.onerror = function () { if (alive) setConn(false); };
-          sock.onclose = function () {
-            if (ws === sock) ws = null;
-            if (alive) { setConn(false); schedule(); }
-          };
-        }
-
-        connect();
-        return function () {
-          alive = false;
-          if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-          if (ws) {
-            ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
-            try { ws.close(); } catch (e) {}
-            ws = null;
-          }
-        };
+        stickRef.current = true;
+        setConn(false);
+        setReconn(0);
+        return startStatePoll({
+          url: API + "/state-poll",
+          onState: setSnap,
+          onConnected: function () { setConn(true); setReconn(0); refetchCatalog(); },
+          onDisconnected: function (attempt) { setConn(false); setReconn(attempt); },
+        });
       }, [open, refetchCatalog]);
 
       // 目录 + 模型（打开面板时拉一次；其余靠 WS 重连 / 手动刷新，事件驱动）
@@ -2195,6 +2456,16 @@ function build(React, opts) {
         const root = wsRootForPath(snap.active.cwd, (snap.workspaces || []).filter(function (w) { return w && w.path; }));
         if (root) setSelWs(root);
       }, [activeSessionKey, activeSessionCwd]);
+
+      // 权限模式跟随会话：仅在“切到另一个会话”时用服务端记住的模式覆盖本地选择，
+      // 避免用户刚在下拉里选好、还没发送就被快照回滚。
+      React.useEffect(function () {
+        const key = snap && snap.active ? (snap.active.key || "") : "";
+        if (!key || key === lastModeSyncRef.current) return;
+        lastModeSyncRef.current = key;
+        const m = snap.active && snap.active.mode;
+        if (m && MODE_LABEL[m]) setMode(m);
+      }, [activeSessionKey]);
 
       // 输入框初始高度
       React.useEffect(() => {
@@ -2330,7 +2601,7 @@ function build(React, opts) {
         const images = imgs || [];
         stickRef.current = true;
         apiChecked("send", {
-          text: text, expanded: expanded, model: modelId, permissionMode: "default", cwd: selWs,
+          text: text, expanded: expanded, model: modelId, mode: mode, cwd: selWs,
           images: images.length ? images : undefined,
         }).then(function (res) {
           if (!res) { setDraft(text); setPendingImages(images); return; } // 失败：还原文稿与图片
@@ -2436,7 +2707,21 @@ function build(React, opts) {
       function onNew() {
         stickRef.current = true;
         if (drawerMode) setDrawerOpen(false);
-        apiChecked("new-session", { permissionMode: "default", cwd: selWs });
+        apiChecked("new-session", { mode: mode, cwd: selWs });
+      }
+
+      // 权限模式切换：完全权限要二次确认；sandbox 是进程启动参数，所以运行中的
+      // 会话要等下一次发送（重建进程）才生效，这里必须说清楚。
+      async function pickMode(next) {
+        if (!next || next === mode) return;
+        if (next === "danger-full-access") {
+          const ok = await uiConfirm("「完全权限」下 Claude 可以读写任意位置（含工作区外），只保留危险操作的授权卡。确认切换？");
+          if (!ok) return;
+        }
+        setMode(next);
+        const st = snap && snap.active ? snap.active.status : "";
+        const running = st === "running" || st === "starting";
+        toast("权限模式已设为「" + (MODE_LABEL[next] || next) + "」" + (running ? "，将在下一次发送时生效" : ""), "ok");
       }
 
       function onSelectWs(w) {
@@ -2726,10 +3011,14 @@ function build(React, opts) {
       // 分页渲染：只渲染最近 N 条，避免长会话整列表全量挂载
       const startIdx = Math.max(0, messages.length - msgLimit);
       const visible = startIdx > 0 ? messages.slice(startIdx) : messages;
-      // 待授权卡（≥2 个时显示批量操作）
+      // 待授权卡（≥2 个时显示批量操作）；AskUserQuestion 必须逐项选择答案，
+      // 不能混进「全部允许」——批量允许不会带 answers，会再次造成「未收到选择」。
       const unanswered = messages.filter(function (m) { return m.role === "control" && m.decision == null && m.requestId; });
+      const isPendingAsk = function (m) { return m.kind === "ask" && Array.isArray(m.questions); };
+      const pendingAsks = unanswered.filter(isPendingAsk);
+      const unansweredPerms = unanswered.filter(function (m) { return !isPendingAsk(m); });
       function answerAll(behavior) {
-        const list = unanswered.slice();
+        const list = unansweredPerms.slice();
         if (!list.length) return;
         let okCount = 0;
         Promise.all(list.map(function (m) {
@@ -2797,9 +3086,14 @@ function build(React, opts) {
             React.createElement("span", { className: "ccw-dot " + (conn ? "ok" : (reconn > 0 ? "run" : "err")) }),
             conn ? "已连接" : (reconn > 0 ? "重连中 · 第 " + reconn + " 次" : "未连接")),
           React.createElement("div", { style: { flex: 1 } }),
-          STANDALONE ? null : React.createElement(React.Fragment, null,
-            React.createElement("button", { className: "ccw-iconbtn", title: "在独立窗口打开", "aria-label": "在独立窗口打开", onClick: function () { openStandalone(); setOpen(false); } }, React.createElement(CcwIcon, { name: "external" })),
-            React.createElement("button", { className: "ccw-iconbtn", title: "最小化到角落", "aria-label": "最小化", onClick: function () {
+          STANDALONE
+            ? (IS_DETACHED_WINDOW
+                ? React.createElement("button", { className: "ccw-iconbtn", title: "关闭这个独立窗口，工作台回到主窗口", "aria-label": "返回主窗口", onClick: returnToMain }, React.createElement(CcwIcon, { name: "restore" }))
+                : null)
+            : React.createElement(React.Fragment, null,
+              // 外部浏览器拿不到登录态；改用同源独立窗口，仍共享登录会话。
+              React.createElement("button", { className: "ccw-iconbtn", title: "在独立窗口打开（可拖到主窗口外、放到另一块屏幕）", "aria-label": "在独立窗口打开", onClick: openDetachedWindow }, React.createElement(CcwIcon, { name: "external" })),
+              React.createElement("button", { className: "ccw-iconbtn", title: "最小化到角落", "aria-label": "最小化", onClick: function () {
               if (dialog) { dialog.resolve(null); setDialog(null); }
               captureMinAnchor();
               setMinimized(true);
@@ -2856,6 +3150,7 @@ function build(React, opts) {
           }),
           React.createElement("div", { className: "ccw-split", title: "拖拽调整工作区宽度", onPointerDown: beginSidebarResize }),
           React.createElement("div", { className: "ccw-main" },
+        React.createElement(AskBar, { items: pendingAsks, messages: messages }),
         searchOpen ? React.createElement("div", { className: "ccw-searchbar", role: "search", "aria-label": "会话内搜索" },
           React.createElement("input", {
             ref: searchInputRef,
@@ -2884,8 +3179,8 @@ function build(React, opts) {
                 stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
               },
             },
-              unanswered.length >= 2 ? React.createElement("div", { className: "ccw-batchbar" },
-                React.createElement(CcwIcon, { name: "alert", size: 14 }), unanswered.length + " 个工具待授权",
+              unansweredPerms.length >= 2 ? React.createElement("div", { className: "ccw-batchbar" },
+                React.createElement(CcwIcon, { name: "alert", size: 14 }), unansweredPerms.length + " 个工具待授权",
                 React.createElement("button", { className: "ccw-btn small primary", onClick: function () { answerAll("allow"); } }, "全部允许"),
                 React.createElement("button", { className: "ccw-btn small danger", onClick: function () { answerAll("deny"); } }, "全部拒绝"),
               ) : null,
@@ -2911,6 +3206,8 @@ function build(React, opts) {
                 let block = null;
                 visible.forEach(function (m, vi) {
                   const i = startIdx + vi;
+                  // 未回答的待确认事项已由顶部 sticky 区域渲染，消息流里不再重复一张空卡片
+                  if (m.kind === "ask" && m.decision == null && Array.isArray(m.questions)) return;
                   const live = running && i === messages.length - 1;
                   const turn = turnByIndex.get(i);
                   if (turn) {
@@ -3055,6 +3352,17 @@ function build(React, opts) {
                 React.createElement(CcwIcon, { name: "slash", size: 11 }), "指令"),
               React.createElement("div", { style: { flex: 1 } }),
               React.createElement("select", {
+                className: "ccw-model ccw-mode" + (mode === "danger-full-access" ? " ccw-mode-danger" : ""),
+                value: mode,
+                onChange: function (e) { pickMode(e.target.value); },
+                "aria-label": "选择权限模式",
+                title: "权限模式：仅可查看 / 工作区内修改 / 完全权限",
+              },
+                SANDBOX_MODES.map(function (m) {
+                  return React.createElement("option", { key: m.id, value: m.id, title: m.title }, m.label);
+                }),
+              ),
+              React.createElement("select", {
                 className: "ccw-model ccw-model-inline",
                 value: modelId,
                 onChange: (e) => setModelId(e.target.value),
@@ -3153,16 +3461,37 @@ function build(React, opts) {
     // ------------------------------------------------------------------
     // 全局入口按钮（sidebar.footer.action）
     // ------------------------------------------------------------------
+    // 底部这一行由宿主横向排列多个条目（本插件 + 产品工作台）。窄侧边栏放不下两个带文字的
+    // 条目，所以这里按整行可用宽度决定是否带标签：够宽才显示文字，不够就只留图标并靠 title
+    // 与 Alt+C 兜底，避免把相邻的原生条目挤成省略号。
     function ClaudeCodeToggle(props) {
       const open = usePanelOpen();
       const wide = !!props.wide;
+      const anchorRef = React.useRef(null);
+      const [roomy, setRoomy] = React.useState(false);
+      React.useLayoutEffect(function () {
+        const el = anchorRef.current;
+        const row = el && el.parentElement;
+        if (!row) return undefined;
+        function measure() { setRoomy(row.clientWidth >= 300); }
+        measure();
+        if (typeof ResizeObserver !== "function") return undefined;
+        const ro = new ResizeObserver(measure);
+        ro.observe(row);
+        return function () { ro.disconnect(); };
+      }, []);
+      const labelled = wide && roomy;
       return React.createElement("button", {
+        ref: anchorRef,
         type: "button",
         className: "ccw-toggle" + (open ? " ccw-toggle-active" : ""),
         title: "Claude Code 工作台（Alt+C 开关）",
+        "aria-label": "Claude Code 工作台",
         "aria-pressed": open,
+        "data-icon-only": labelled ? undefined : "true",
+        "data-window-no-drag": true,
         onClick: () => setOpen(!open),
-      }, React.createElement(ClaudeLogo, { size: 14 }), wide ? React.createElement("span", null, "Claude Code") : null);
+      }, React.createElement(ClaudeLogo, { size: labelled ? 16 : 18 }), labelled ? React.createElement("span", { className: "ccw-toggle-label" }, "Claude Code") : null);
     }
 
     // ------------------------------------------------------------------
@@ -3183,6 +3512,38 @@ function build(React, opts) {
         ];
         return () => { for (const w of waiters) w(); };
       }, "dsh-claude-code-web: slot registrations");
+
+      // 独立窗口与主窗口之间只传状态，不传数据：同源 BroadcastChannel，发送方不会收到自己的消息。
+      // 独立页每 2s 发一次心跳；主窗口收到第一次就绪广播才收起自己的面板，窗口关闭（或崩溃、
+      // 心跳超时）再把面板还回主窗口。这样即使窗口没起来、被拦截、或强杀，面板都不会丢。
+      if (detachChannel) {
+        ctx.effect(() => {
+          const channel = detachChannel;
+          let detachedOpen = false;
+          let lastAlive = 0;
+          const onMessage = function (event) {
+            const type = event.data && event.data.type;
+            if (type === "detached-opened" || type === "detached-alive") {
+              lastAlive = Date.now();
+              if (!detachedOpen) { detachedOpen = true; setOpen(false); }
+            } else if (type === "detached-closed") {
+              detachedOpen = false;
+              setOpen(true);
+            }
+          };
+          channel.addEventListener("message", onMessage);
+          const watchdog = setInterval(function () {
+            if (detachedOpen && Date.now() - lastAlive > 8000) {
+              detachedOpen = false;
+              setOpen(true);
+            }
+          }, 1000);
+          return () => {
+            channel.removeEventListener("message", onMessage);
+            clearInterval(watchdog);
+          };
+        }, "dsh-claude-code-web: detached window channel");
+      }
     }
 
     exports.apply = apply;
@@ -3200,6 +3561,16 @@ function build(React, opts) {
         return;
       }
       ReactDOM.createRoot(rootEl).render(React.createElement(ClaudeCodeView));
+
+      // 只有从主窗口「在独立窗口打开」进来的那个独立页才参与交接；用户自己访问
+      // /claude/ 的普通独立页不广播，避免误把主窗口面板收起。
+      if (IS_DETACHED_WINDOW) {
+        detachBroadcast("detached-opened");
+        const alive = setInterval(function () { detachBroadcast("detached-alive"); }, 2000);
+        const onLeave = function () { clearInterval(alive); broadcastDetachedClosed(); };
+        window.addEventListener("beforeunload", onLeave);
+        window.addEventListener("pagehide", onLeave);
+      }
     }
     exports.mountStandalone = mountStandalone;
 

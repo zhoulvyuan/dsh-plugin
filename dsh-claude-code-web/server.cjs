@@ -12,6 +12,8 @@ const path = require('path')
 const crypto = require('crypto')
 const { query, renameSession, deleteSession } = require('@anthropic-ai/claude-agent-sdk')
 const { WebSocketServer, WebSocket: WsSocket } = require('ws')
+const { createStatePoll } = require('./state-poll.cjs')
+let statePoll = createStatePoll(snapshot)
 
 const CLAUDE_BIN = resolveClaudeBin()
 const PORT = Number(process.env.CLAUDE_CODE_PORT || 3780)
@@ -21,6 +23,176 @@ const ROOT = __dirname
 const DATA_HOME = process.env.CLAUDE_CODE_WEB_HOME || path.join(os.homedir(), '.claude-code-web')
 // 挂载前缀：独立模式 ''（服务在 /）；内嵌 DSH 时为 '/claude'（服务在 /claude/*）
 const BASE_PATH = (process.env.CLAUDE_BASE_PATH || '').replace(/\/+$/, '')
+
+// ── 子进程 PATH ───────────────────────────────────────────────────
+// 部分宿主（桌面壳）会把后端 PATH 收紧成「自带 node + /usr/bin:/bin:/usr/sbin:/sbin」，
+// 不含 Homebrew 的 /opt/homebrew/bin，于是：
+//   - 裸命令 `npm` spawn ENOENT（更新检查显示「最新版本：未知」）；
+//   - Claude Code CLI 的 Bash/Grep 工具也找不到 rg / pnpm 等开发命令。
+// 这里只为「子进程」补回常见安装目录，不改动后端进程自身的 PATH；
+// 目录追加在原 PATH 之后，保持宿主自带 node 优先，避免影响宿主运行时。
+function childEnv() {
+  const parts = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
+  if (process.platform !== 'win32') {
+    const extras = [
+      '/opt/homebrew/bin',
+      '/usr/local/bin',
+      path.join(os.homedir(), '.local', 'bin'),
+      path.join(os.homedir(), '.bun', 'bin'),
+    ]
+    for (const d of extras) {
+      try { if (fs.existsSync(d) && parts.indexOf(d) === -1) parts.push(d) } catch (e) {}
+    }
+  }
+  return Object.assign({}, process.env, { PATH: parts.join(path.delimiter) })
+}
+
+// ── 权限模式（对齐 DSH 三档语义）────────────────────────────────────
+// 与 DSH 的 sandbox mode 同名同义，便于用户心智一致：
+//   read-only          仅可查看：文件不可写（Bash 走只读沙箱，写类工具由宿主拒绝）
+//   workspace-write    工作区内修改：只允许写会话工作区（Bash 由沙箱限制，写类工具校验目标路径）
+//   danger-full-access 完全权限：不限制（保持旧版行为，危险操作仍会弹授权卡）
+// 三档都是「宿主闸门 + SDK sandbox」两层：
+//   - sandbox 只约束 Bash 子进程，SDK 不把文件工具纳入 sandbox
+//   - 文件工具（Write/Edit/NotebookEdit…）由 canUseTool 闸门按路径判断
+const SANDBOX_MODES = ['read-only', 'workspace-write', 'danger-full-access']
+const DEFAULT_SANDBOX_MODE = 'danger-full-access'
+const SANDBOX_MODE_LABELS = { 'read-only': '仅可查看', 'workspace-write': '工作区内修改', 'danger-full-access': '完全权限' }
+// 旧客户端直接传 SDK 原生 permissionMode，一律按「完全权限」处理（不改变既有行为）
+const SDK_PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'bypassPermissions', 'dontAsk', 'auto']
+
+function normalizeSandboxMode(v) {
+  if (typeof v === 'string' && SANDBOX_MODES.indexOf(v) !== -1) return v
+  return DEFAULT_SANDBOX_MODE
+}
+
+// 写类工具：名字随 Claude Code 版本略有差异，按枚举 + 小写前缀双重判断
+const WRITE_TOOL_NAMES = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'NotebookWrite', 'StrReplace', 'ApplyPatch', 'WriteFile']
+function isWriteTool(name) {
+  if (!name || typeof name !== 'string') return false
+  if (WRITE_TOOL_NAMES.indexOf(name) !== -1) return true
+  return /^(write|edit|multiedit|notebookedit|strreplace|applypatch)(file|tool)?$/i.test(name)
+}
+
+// 从工具入参里取写入目标路径（不同工具字段名不同）
+function writeTargetPath(input) {
+  if (!input || typeof input !== 'object') return null
+  const keys = ['file_path', 'notebook_path', 'path', 'target_file']
+  for (let i = 0; i < keys.length; i++) {
+    const v = input[keys[i]]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  return null
+}
+
+// 解析成「尽量真实」的绝对路径：目标文件可能尚不存在，因此逐级 realpath 最近的
+// 已存在祖先再拼回剩余段，可抵御 ../ 与符号链接逃逸（如工作区里指向 /etc 的软链）
+function resolveRealPath(p, base) {
+  let abs = String(p || '')
+  if (!abs) return null
+  if (abs === '~') abs = os.homedir()
+  else if (abs.indexOf('~/') === 0) abs = path.join(os.homedir(), abs.slice(2))
+  abs = path.isAbsolute(abs) ? path.resolve(abs) : path.resolve(base || process.cwd(), abs)
+  const rest = []
+  let cur = abs
+  for (;;) {
+    try { return path.join(fs.realpathSync(cur), ...rest) } catch (e) {}
+    const parent = path.dirname(cur)
+    if (parent === cur) return abs
+    rest.unshift(path.basename(cur))
+    cur = parent
+  }
+}
+
+function isWithin(root, target) {
+  if (!root || !target) return false
+  const rel = path.relative(root, target)
+  if (rel === '') return true
+  if (path.isAbsolute(rel)) return false
+  return rel !== '..' && rel.indexOf('..' + path.sep) !== 0
+}
+
+function workspaceRootOf(cwd) {
+  const base = cwd || process.cwd()
+  try { return fs.realpathSync(base) } catch (e) { return path.resolve(base) }
+}
+
+/**
+ * 宿主侧模式闸门：返回拒绝原因（string）或 null（放行给既有授权流程）。
+ * 必须在会话级「始终允许」规则之前调用，否则历史规则会静默绕过只读/工作区限制。
+ */
+function sandboxModeDenial(mode, toolName, input, cwd) {
+  if (mode !== 'read-only' && mode !== 'workspace-write') return null
+  if (!isWriteTool(toolName)) return null
+  if (mode === 'read-only') {
+    return '当前为「仅可查看」模式，已拒绝修改文件（' + toolName + '）。如需写入，请把权限模式切到「工作区内修改」或「完全权限」。'
+  }
+  const raw = writeTargetPath(input)
+  const root = workspaceRootOf(cwd)
+  if (!raw) return '当前为「工作区内修改」模式：无法确认写入目标路径，已拒绝。如需继续，请切到「完全权限」。'
+  const target = resolveRealPath(raw, root)
+  if (!target || !isWithin(root, target)) {
+    return '当前为「工作区内修改」模式：只允许修改工作区 ' + root + ' 内的文件，已拒绝写入 ' + String(target || raw) + '。如需跨目录写入，请切到「完全权限」。'
+  }
+  return null
+}
+
+/**
+ * 三档对应的 SDK sandbox 选项（spawn 期参数，不能热切换）。
+ * sandbox 只约束 Bash 子进程；只读档用 denyWrite 全盘兜底，避免沙箱默认把 cwd/tmp
+ * 视为可写而漏掉写入。failIfUnavailable 固定 true：沙箱起不来就报错，绝不静默降级。
+ */
+function sandboxOptions(mode, cwd) {
+  if (mode !== 'read-only' && mode !== 'workspace-write') return null
+  return {
+    enabled: true,
+    failIfUnavailable: true,
+    autoAllowBashIfSandboxed: true,
+    filesystem: mode === 'read-only'
+      ? { allowWrite: [], denyWrite: ['/'] }
+      : { allowWrite: [workspaceRootOf(cwd)] },
+    // 禁止模型用 dangerouslyDisableSandbox 逃出沙箱（SDK 默认允许）
+    allowUnsandboxedCommands: false,
+  }
+}
+
+/**
+ * PreToolUse hook：权限模式的权威闸门。
+ * 为什么不用 canUseTool 当唯一闸门：用户/项目的 ~/.claude/settings.json 里若有裸的
+ * "Edit" / "Write" allow 规则（本机就有），权限判定阶段会直接放行，canUseTool 根本
+ * 不会被调用；PreToolUse 在权限判定之前执行，是唯一能覆盖所有配置来源的拦截点。
+ * canUseTool 里的同名判定保留为第二层（并在没有 allow 规则时给出更好的卡片体验）。
+ */
+function makeModeGuard(r) {
+  return function guard(input) {
+    const toolName = input && input.tool_name
+    const toolInput = input && input.tool_input
+    const mode = r.sandboxMode || DEFAULT_SANDBOX_MODE
+    const denial = sandboxModeDenial(mode, toolName, toolInput, r.cwd)
+    if (!denial) return Promise.resolve({})
+    pushMsg(r, { id: r.counter++, role: 'result', isError: true, text: '[' + (SANDBOX_MODE_LABELS[mode] || mode) + '] ' + denial })
+    return Promise.resolve({
+      decision: 'block',
+      reason: denial,
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: denial,
+      },
+    })
+  }
+}
+
+// 沙箱起不来时给出可操作的中文说明，而不是把 CLI 原始英文错误直接抛给用户
+function describeQueryError(r, e) {
+  const raw = String(e && e.message ? e.message : e)
+  const needsSandbox = (r.sandboxMode || DEFAULT_SANDBOX_MODE) !== 'danger-full-access'
+  if (needsSandbox && /sandbox|bubblewrap|landlock|seatbelt|operation not permitted/i.test(raw)) {
+    return '当前权限模式需要系统沙箱，但沙箱没能启动：' + raw
+      + '。请确认平台支持（macOS 需 sandbox-exec，Linux 需 bubblewrap），或暂时切到「完全权限」。'
+  }
+  return raw
+}
 
 // 确保数据目录存在
 function ensureDataHome() {
@@ -164,12 +336,15 @@ function discoverWs(p) {
   if (!wsEntry(p)) wsRegistry.workspaces.push({ path: p, name: '' })
 }
 
-function newRecord(permissionMode, cwd) {
+function newRecord(sandboxMode, cwd) {
   return {
     key: 'r' + (++seq),
     sessionId: null,
     title: '',
-    permissionMode: permissionMode || 'default',
+    // 交给 SDK 的原生模式固定为 default（危险操作仍弹卡）；三档限制由
+    // sandboxMode + 宿主闸门实现，保留 permissionMode 仅为兼容既有消费方。
+    permissionMode: 'default',
+    sandboxMode: normalizeSandboxMode(sandboxMode),
     cwd: cwd || workspaceDir,
     status: 'idle',
     model: '',
@@ -194,6 +369,50 @@ function newRecord(permissionMode, cwd) {
     startedAt: null,
     durationMs: null,
     mtimeMs: 0,
+  }
+}
+
+// ── AskUserQuestion（待确认事项）────────────────────────────────────
+// Claude Code 把 AskUserQuestion 当作一次「需要宿主渲染并作答」的权限请求：
+// CLI 侧 checkPermissions 返回 behavior:"ask"，宿主必须在 canUseTool 的应答里
+// 回传 updatedInput.answers = { [问题文本]: 选中label | label[] }。
+// 若只回 { behavior:'allow', updatedInput: 原input }（不带 answers），CLI 会生成
+// tool_result「The user did not answer the questions.」，模型随即反馈「未收到选择」
+// 并自行按推荐值继续 —— 这正是本插件 v0.1.3 之前的行为。
+const ASK_TOOL = 'AskUserQuestion'
+
+function isAskUserQuestion(toolName, input) {
+  return toolName === ASK_TOOL && !!input && Array.isArray(input.questions) && input.questions.length > 0
+}
+
+// 清洗并校验用户提交的选择，构造 CLI 期望的 updatedInput。
+// 契约：键必须是本次 questions 里的问题文本；值只接受字符串（单选 / Other 自由文本）
+// 或字符串数组（multiSelect）；空值、越界键一律丢弃。纯函数，便于测试。
+function buildQuestionUpdatedInput(input, answers) {
+  const questions = (input && Array.isArray(input.questions)) ? input.questions : []
+  const allowed = {}
+  questions.forEach(function (q) {
+    if (q && typeof q.question === 'string') allowed[q.question] = true
+  })
+  const clean = {}
+  if (answers && typeof answers === 'object' && !Array.isArray(answers)) {
+    Object.keys(answers).forEach(function (k) {
+      if (!allowed[k]) return
+      const v = answers[k]
+      if (typeof v === 'string') {
+        const s = v.trim().slice(0, 2000)
+        if (s) clean[k] = s
+      } else if (Array.isArray(v)) {
+        const arr = v.filter(function (x) { return typeof x === 'string' && x.trim() })
+          .map(function (x) { return x.trim().slice(0, 2000) }).slice(0, 32)
+        if (arr.length) clean[k] = arr
+      }
+    })
+  }
+  return {
+    ok: Object.keys(clean).length > 0,
+    answers: clean,
+    updatedInput: Object.assign({}, input || {}, { answers: clean }),
   }
 }
 
@@ -359,6 +578,7 @@ function plainSession(r) {
     cwd: r.cwd,
     model: r.model,
     permissionMode: r.permissionMode,
+    mode: r.sandboxMode || DEFAULT_SANDBOX_MODE,
     error: r.error,
     startedAt: r.startedAt,
     durationMs: r.durationMs,
@@ -624,14 +844,19 @@ function handleMessage(r, msg) {
     return
   }
   if (type === 'control_request' && msg.request) {
+    const req = msg.request
+    const ctlInput = req.input || {}
+    const ctlIsAsk = isAskUserQuestion(req.tool_name, ctlInput)
     r.pendingControl = {
       requestId: msg.request_id || '',
-      subtype: msg.request.subtype || '',
-      toolName: msg.request.tool_name || '',
-      input: msg.request.input || {},
-      suggestions: msg.request.permission_suggestions || [],
+      subtype: req.subtype || '',
+      toolName: req.tool_name || '',
+      input: ctlInput,
+      kind: ctlIsAsk ? 'ask' : 'permission',
+      questions: ctlIsAsk ? ctlInput.questions : undefined,
+      suggestions: req.permission_suggestions || [],
     }
-    pushMsg(r, { id: r.counter++, role: 'control', requestId: r.pendingControl.requestId, subtype: r.pendingControl.subtype, toolName: r.pendingControl.toolName, input: r.pendingControl.input, suggestions: r.pendingControl.suggestions })
+    pushMsg(r, { id: r.counter++, role: 'control', requestId: r.pendingControl.requestId, subtype: r.pendingControl.subtype, toolName: r.pendingControl.toolName, input: ctlInput, suggestions: r.pendingControl.suggestions, kind: r.pendingControl.kind, questions: r.pendingControl.questions })
     return
   }
 }
@@ -696,8 +921,19 @@ function killQuery(r) {
 function makeCanUseTool(r) {
   return function canUseTool(toolName, input, opts) {
     opts = opts || {}
-    // 已「始终允许」过的命令：直接放行，不再弹窗（deny 黑名单永远不会走到这里，安全兜底不受影响）
-    if (matchSessionRule(r, toolName, input)) {
+    const isAsk = isAskUserQuestion(toolName, input)
+    // 模式闸门必须排在会话级「始终允许」规则之前：否则在完全权限下点过的
+    // 「始终允许」会在切到只读/工作区后静默放行写操作。
+    const mode = r.sandboxMode || DEFAULT_SANDBOX_MODE
+    const denial = sandboxModeDenial(mode, toolName, input, r.cwd)
+    if (denial) {
+      // 留一条可见记录，避免用户只看到一次失败的 tool_result 却不知原因
+      pushMsg(r, { id: r.counter++, role: 'result', isError: true, text: '[' + (SANDBOX_MODE_LABELS[mode] || mode) + '] ' + denial })
+      return Promise.resolve({ behavior: 'deny', message: denial })
+    }
+    // 待确认事项每次都必须展示给用户：既不能被「始终允许」的历史规则静默放行，
+    // 也不能进入会话规则（否则后续提问连卡片都不再出现，且永远不带 answers）。
+    if (!isAsk && matchSessionRule(r, toolName, input)) {
       return Promise.resolve({ behavior: 'allow', updatedInput: input })
     }
     return new Promise(function (resolve) {
@@ -706,6 +942,8 @@ function makeCanUseTool(r) {
         requestId: requestId,
         toolName: toolName,
         input: input,
+        kind: isAsk ? 'ask' : 'permission',
+        questions: isAsk ? input.questions : undefined,
         suggestions: opts.suggestions || [],
         title: opts.title || '',
         displayName: opts.displayName || toolName,
@@ -725,6 +963,8 @@ function makeCanUseTool(r) {
         title: pc.title,
         displayName: pc.displayName,
         description: pc.description,
+        kind: pc.kind,
+        questions: pc.questions,
       })
       if (opts.signal) {
         opts.signal.addEventListener('abort', function () {
@@ -747,18 +987,27 @@ function ensureQuery(r) {
     r.inputQueue = AsyncQueue()
     const opts = {
       cwd: r.cwd,
-      permissionMode: r.permissionMode || 'default',
+      // 三档都保持 SDK 原生 default：危险操作照旧弹授权卡，限制来自 sandbox + 闸门
+      permissionMode: 'default',
       includePartialMessages: true,
       canUseTool: makeCanUseTool(r),
       pathToClaudeCodeExecutable: CLAUDE_BIN,
+      env: childEnv(),
     }
+    // sandbox 是 spawn 期参数：只读 / 工作区两档在这里挂上，完全权限不挂
+    const sbOpts = sandboxOptions(r.sandboxMode, r.cwd)
+    if (sbOpts) opts.sandbox = sbOpts
+    // 受限档位才注册 hook：完全权限不需要每次工具调用多一次 control 往返
+    if (sbOpts) opts.hooks = { PreToolUse: [{ hooks: [makeModeGuard(r)] }] }
     if (r.model) opts.model = r.model
     if (r.sessionId) opts.resume = r.sessionId
     r.abortController = new AbortController()
     opts.abortController = r.abortController
     r._procPermMode = r.permissionMode || 'default'
+    r._procMode = r.sandboxMode || DEFAULT_SANDBOX_MODE
     r._procModel = r.model || ''
     const q = query({ prompt: r.inputQueue, options: opts })
+    const myAbort = r.abortController
     r.query = q
     r.status = 'running'
     r.startedAt = Date.now()
@@ -772,19 +1021,24 @@ function ensureQuery(r) {
           handleMessage(r, msg)
         }
       } catch (e) {
-        if (r.abortController && r.abortController.signal.aborted) {
+        // 已被 killQuery 换掉（切模式/模型）时，本次生命周期作废，不能把
+        // abort 的 "Operation aborted" 写回记录，也不能覆盖新 query 的状态
+        if (r.query !== q) return
+        if (myAbort && myAbort.signal.aborted) {
           if (r.status === 'running' || r.status === 'starting') r.status = 'stopped'
         } else {
           r.status = 'error'
-          if (!r.error) r.error = String(e && e.message ? e.message : e)
+          if (!r.error) r.error = describeQueryError(r, e)
         }
         markDirty()
       } finally {
-        r.query = null
-        r.inputQueue = null
-        if (r.status === 'running' || r.status === 'starting') r.status = 'done'
-        if (r.startedAt != null) r.durationMs = Date.now() - r.startedAt
-        markDirty()
+        if (r.query === q) {
+          r.query = null
+          r.inputQueue = null
+          if (r.status === 'running' || r.status === 'starting') r.status = 'done'
+          if (r.startedAt != null) r.durationMs = Date.now() - r.startedAt
+          markDirty()
+        }
       }
     })()
     return { ok: true }
@@ -807,7 +1061,7 @@ function newSession(args) {
     const abs = path.resolve(a.cwd)
     try { if (fs.statSync(abs).isDirectory()) cwd = abs } catch (e) {}
   }
-  const r = newRecord(a.permissionMode, cwd)
+  const r = newRecord(a.mode !== undefined ? a.mode : a.permissionMode, cwd)
   runtime.set(r.key, r)
   activeId = r.key
   markDirty()
@@ -820,7 +1074,8 @@ function sendMessage(args) {
   const expanded = String(a.expanded || a.text || '').trim()  // 实际发给 claude 的内容（命令展开后）
   if (!text) return { ok: false, error: '消息为空' }
   recordCommand(text, expanded)
-  const permissionMode = a.permissionMode || 'default'
+  // 优先读新字段 mode；旧客户端传的 permissionMode（SDK 原生值）归一为「完全权限」
+  const mode = normalizeSandboxMode(a.mode !== undefined ? a.mode : a.permissionMode)
   let r = activeId && runtime.has(activeId) ? runtime.get(activeId) : null
   if (!r) {
     let cwd = null
@@ -828,17 +1083,21 @@ function sendMessage(args) {
       const abs = path.resolve(a.cwd)
       try { if (fs.statSync(abs).isDirectory()) cwd = abs } catch (e) {}
     }
-    r = newRecord(permissionMode, cwd)
+    r = newRecord(mode, cwd)
     runtime.set(r.key, r)
     activeId = r.key
   }
   if (r.status === 'running' || r.status === 'starting') return { ok: false, error: '该会话正在生成中，请等待或切到其它会话' }
-  // 权限模式或模型发生变更时，重建进程（session 级授权随之失效，属预期）
+  // 权限模式或模型变更时重建进程：sandbox 是 spawn 期参数，无法热切换；
+  // 重建后 session 级授权随之失效（属预期，前端会提示“下次发送生效”）。
   const newModel = a.model !== undefined ? (a.model || '') : (r.model || '')
-  if (r.query && ((r._procPermMode || 'default') !== permissionMode || (r._procModel || '') !== newModel)) {
+  const modeChanged = (r._procMode || DEFAULT_SANDBOX_MODE) !== mode
+  const modelChanged = (r._procModel || '') !== newModel
+  if (r.query && (modeChanged || modelChanged)) {
     killQuery(r)
   }
-  r.permissionMode = permissionMode
+  r.sandboxMode = mode
+  if (modeChanged) r.sessionRules = []   // 换了限制档位，旧的“始终允许”不再成立
   if (a.model !== undefined) r.model = a.model || ''
   if (!r.title) r.title = text.length > 40 ? text.slice(0, 40) : text
   // 图片附件（base64）：与文本一起作为 content 块发给 Claude；记录里只留元信息（mediaType）避免快照膨胀
@@ -919,7 +1178,7 @@ function switchSession(args) {
   runtime.forEach(function (v) { if (v.sessionId === sid) target = v })
   if (!target) {
     const h = history.find(function (x) { return x.id === sid })
-    const r = newRecord(a.permissionMode, sessionCwd(sid) || null)
+    const r = newRecord(a.mode !== undefined ? a.mode : a.permissionMode, sessionCwd(sid) || null)
     r.sessionId = sid
     if (h && h.title) r.title = h.title
     r.messages = loadHistoryMessages(sid)
@@ -960,8 +1219,20 @@ function answerControl(args) {
   }
   if (!pc || !pc.resolve) return { ok: false, error: '无待处理的授权请求' }
   const behavior = a.behavior === 'allow' ? 'allow' : (a.behavior === 'always' ? 'always' : 'deny')
+  const isAsk = pc.kind === 'ask' || isAskUserQuestion(pc.toolName, pc.input)
   let result
-  if (behavior === 'allow') {
+  if (isAsk && behavior === 'always') {
+    // 「始终允许」对提问无意义且危险：后续提问会被静默放行、永远不带 answers
+    return { ok: false, error: '待确认事项不支持「始终允许」，请选择答案后提交' }
+  }
+  if (isAsk && behavior === 'allow') {
+    // 关键：必须把用户选择放进 updatedInput.answers；缺少 answers 时服务端直接拒绝，
+    // 绝不向 CLI 回一个「已允许但没作答」的结果（那正是「未收到选择」的根因）。
+    const built = buildQuestionUpdatedInput(pc.input, a.answers)
+    if (!built.ok) return { ok: false, error: '请先为待确认事项选择答案' }
+    result = { behavior: 'allow', updatedInput: built.updatedInput }
+    pc.answers = built.answers
+  } else if (behavior === 'allow') {
     result = { behavior: 'allow', updatedInput: pc.input }
   } else if (behavior === 'always') {
     // 始终允许：记录到本次会话的服务端内存规则里，后续同命令自动放行；不写任何配置文件
@@ -971,7 +1242,7 @@ function answerControl(args) {
     result = { behavior: 'deny', message: a.message || '用户拒绝' }
   }
   // 在界面上标记该授权卡已处理 + 具体决策，让用户明确自己点了哪个按钮
-  markControlDecision(r, pc.requestId, behavior)
+  markControlDecision(r, pc.requestId, behavior, isAsk ? pc.answers : null)
   // 维护最近一个 pendingControl 引用（供快照/兼容用）
   const rest = Object.keys(r.pendingControls)
   r.pendingControl = rest.length ? r.pendingControls[rest[rest.length - 1]] : null
@@ -980,12 +1251,13 @@ function answerControl(args) {
   return { ok: true }
 }
 
-function markControlDecision(r, requestId, behavior) {
+function markControlDecision(r, requestId, behavior, answers) {
   if (!requestId) return
   for (let i = r.messages.length - 1; i >= 0; i--) {
     const m = r.messages[i]
     if (m.role === 'control' && m.requestId === requestId) {
       m.decision = behavior
+      if (answers) m.answers = answers
       return
     }
   }
@@ -1006,6 +1278,8 @@ function denyAllPendingControls(r, message) {
 }
 
 function matchSessionRule(r, toolName, input) {
+  // AskUserQuestion 是「待确认事项」而非普通工具：任何历史规则都不能让它静默放行
+  if (toolName === ASK_TOOL) return false
   const rules = r.sessionRules || []
   for (let i = 0; i < rules.length; i++) {
     const rule = rules[i]
@@ -1022,6 +1296,8 @@ function matchSessionRule(r, toolName, input) {
 }
 
 function addSessionRule(r, pc) {
+  // 「始终允许」只适用于命令/文件类工具；提问若入规则，后续提问会连卡片都不再出现
+  if (pc.kind === 'ask' || pc.toolName === ASK_TOOL) return
   const rules = r.sessionRules || []
   const rule = { toolName: pc.toolName, ruleContent: commandContent(pc) || '' }
   for (let i = 0; i < rules.length; i++) {
@@ -1426,7 +1702,7 @@ function listDir(p) {
 // 调起系统原生「选择文件夹」对话框，返回 POSIX 路径
 function runPicker(cmd, args) {
   return new Promise(function (resolve) {
-    execFile(cmd, args, function (err, stdout) {
+    execFile(cmd, args, { env: childEnv() }, function (err, stdout) {
       if (err) return resolve({ ok: false, error: String((err && err.message) || err) })
       const out = String(stdout || '').trim()
       if (!out) return resolve({ ok: false, cancelled: true })
@@ -1481,7 +1757,7 @@ function openPath(p) {
     const cmd = process.platform === 'darwin' ? ['open', abs]
       : process.platform === 'win32' ? ['explorer', abs]
       : ['xdg-open', abs]
-    const child = spawn(cmd[0], cmd.slice(1), { detached: true, stdio: 'ignore' })
+    const child = spawn(cmd[0], cmd.slice(1), { detached: true, stdio: 'ignore', env: childEnv() })
     child.on('error', function () {})
     child.unref()
     return { ok: true, path: abs }
@@ -1598,7 +1874,9 @@ function runCmd(cmd, args, timeoutMs) {
   return new Promise(function (resolve) {
     // Windows：npm / npx / .cmd shim 需经 shell（cmd.exe /c）执行，原生 .exe 直接 spawn
     const useShell = process.platform === 'win32' && !/\.exe$/i.test(cmd)
-    const child = spawn(cmd, args, useShell ? { stdio: ['ignore', 'pipe', 'pipe'], shell: true } : { stdio: ['ignore', 'pipe', 'pipe'] })
+    const opts = { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv() }
+    if (useShell) opts.shell = true
+    const child = spawn(cmd, args, opts)
     let out = '', errOut = ''
     const timer = setTimeout(function () {
       try { child.kill('SIGKILL') } catch (e) {}
@@ -1740,6 +2018,7 @@ function markDirty() {
   setTimeout(function () {
     wsDirty = false
     wsLastSent = Date.now()
+    statePoll.notify()
     if (wsClients.size === 0) return
     const payload = JSON.stringify(snapshot())
     for (const c of wsClients) {
@@ -1760,6 +2039,7 @@ function markStreamDirty(r, am) {
   setTimeout(function () {
     streamDirty = false
     streamLastSent = Date.now()
+    statePoll.notifyStream()
     if (wsClients.size === 0 || !streamPending) return
     const payload = JSON.stringify({ type: 'stream-delta', delta: streamPending })
     streamPending = null
@@ -1792,6 +2072,7 @@ function handleUpgrade(req, socket, head) {
 
 // 关闭所有下行连接与心跳（宿主半部在路由 dispose 时调用）
 function disposeServer() {
+  statePoll.stop()
   if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
   for (const c of wsClients) { try { c.terminate() } catch (e) {} }
   wsClients.clear()
@@ -1801,6 +2082,8 @@ function disposeServer() {
 // 初始化（独立运行与插件内嵌共用）：恢复工作区、刷新历史、启动 WebSocket 心跳
 let heartbeatTimer = null
 function initServer() {
+  statePoll.stop()
+  statePoll = createStatePoll(snapshot)
   if (heartbeatTimer) clearInterval(heartbeatTimer)
   heartbeatTimer = setInterval(function () {
     for (const c of wsClients) {
@@ -1853,7 +2136,10 @@ async function handleRequest(req, res) {
         res.end('Upgrade Required')
         return
       }
-      // /api/state 轮询端点已移除：客户端全部走 WebSocket 推送，禁止轮询
+      // Bounded same-origin long-poll survives Hosted SSO's HTTP proxy and desktop IPC.
+      if (req.method === 'GET' && u.pathname === '/api/state-poll') {
+        return statePoll.handle(req, res, u)
+      }
       if (req.method === 'GET' && u.pathname === '/api/workspace') {
         return sendJson(res, { ok: true, path: workspaceDir, home: os.homedir() })
       }
@@ -1958,6 +2244,18 @@ module.exports = {
   // 子代理结果规整 / 历史加载（纯函数，供测试与调试）
   normalizeSubagentResult,
   loadHistoryMessages,
+  // AskUserQuestion 答案构造（纯函数，供测试与调试）
+  isAskUserQuestion,
+  buildQuestionUpdatedInput,
+  // 权限模式（三档）相关纯函数，供测试与调试
+  normalizeSandboxMode,
+  sandboxModeDenial,
+  sandboxOptions,
+  resolveRealPath,
+  isWithin,
+  isWriteTool,
+  writeTargetPath,
+  SANDBOX_MODES,
 }
 
 // 独立运行入口：node server.js 直接执行时才监听端口
@@ -1965,10 +2263,12 @@ if (require.main === module) {
   initServer()
   const server = http.createServer(handleRequest)
   // 独立运行也要接 WebSocket 升级（内嵌模式由宿主半部的 webServer.registerUpgrade 接线）
+  // 带前缀启动（CLAUDE_BASE_PATH=/claude，前端 API 硬编码 /claude/api）时路径要跟着带前缀
+  const wsPath = (BASE_PATH || '') + '/api/stream'
   server.on('upgrade', function (req, socket, head) {
     let pathname = ''
     try { pathname = new URL(req.url, 'http://localhost').pathname } catch (e) {}
-    if (pathname === '/api/stream') handleUpgrade(req, socket, head)
+    if (pathname === wsPath) handleUpgrade(req, socket, head)
     else { try { socket.destroy() } catch (e) {} }
   })
   server.listen(PORT, '127.0.0.1', function () {

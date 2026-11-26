@@ -1,10 +1,10 @@
 # dsh-claude-code-web — 引入到 DSH 使用说明
 
-本插件把 **Claude Code** 包装成 DSH 原生插件（宿主进程内嵌 HTTP/WebSocket 服务 + 浏览器客户端悬浮面板）。
+本插件把 **Claude Code** 包装成 DSH 原生插件（宿主进程内嵌 HTTP 服务 + 长轮询下行 + 浏览器客户端悬浮面板）。
 
 - 宿主半部：`lib/index.js`（Cordis 插件，挂载 `/claude` 路由）
 - 客户端半部：`lib/client.js`（浏览器 React，侧边栏底部按钮 + 悬浮面板）
-- 核心服务：`server.cjs`（HTTP/WebSocket 处理，复用同一份）
+- 核心服务：`server.cjs`（HTTP 处理与长轮询下行，复用同一份）
 - 注册层：`cordis.patch.yml`（由 `package.json` 的 `dsh.bundle.patch` 指向，DSH 自动加载）
 
 ---
@@ -119,7 +119,7 @@ dsh web
 
 启动后：
 
-- 宿主半部挂载 `/claude` HTTP + `/claude/api/stream` WebSocket 路由；
+- 宿主半部挂载 `/claude` HTTP 前缀路由（下行走 `/claude/api/state-poll` 长轮询）；
 - 客户端半部在浏览器侧边栏底部出现 Claude Code 按钮，点击打开悬浮面板；
 - 面板内可选择工作区、发起对话、流式返回正常。
 

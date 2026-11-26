@@ -2,6 +2,31 @@
 
 本文件记录 `dsh-plugin` 各发布版本的变更。版本号对应 Git 标签，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [Unreleased]
+
+### 新增（Features）
+
+- **dsh-claude-code-web：三档权限模式（仅可查看 / 工作区内修改 / 完全权限）**，与 DSH 的 sandbox 语义对齐。此前工作台只有「不限制 + 每次弹授权卡」一档，`permissionMode` 在服务端全链路透传、客户端却硬编码 `"default"`，没有任何入口。
+  - 服务端（server.cjs）：新增 `SANDBOX_MODES` / `normalizeSandboxMode()` / `sandboxModeDenial()` / `sandboxOptions()`。只读与工作区两档用 `sandbox`（`filesystem.allowWrite` 限定工作区、只读档 `allowWrite:[] + denyWrite:['/']`）约束 Bash，`failIfUnavailable:true` 保证沙箱起不来就报错而不是静默降级，`allowUnsandboxedCommands:false` 关掉 `dangerouslyDisableSandbox` 逃生通道；文件工具由 `PreToolUse` hook 按 realpath 后的目标路径判定（`../`、符号链接逃逸都会指到工作区外）。`newSession` / `switchSession` / `sendMessage` 改读 `mode`，旧字段 `permissionMode` 归一为「完全权限」；模式变化会重建进程并清空 sessionRules。
+  - 为什么闸门必须放在 hook 而不是只放 `canUseTool`：`~/.claude/settings.json` 里的裸 `"Edit"` / `"Write"` allow 规则会在权限判定阶段直接放行，`canUseTool` 根本不会被调用（本机设置即如此）；`PreToolUse` 在权限判定之前执行，是唯一能覆盖所有配置来源的拦截点。`canUseTool` 里的同名判定保留为第二层。
+  - 客户端（client.js）：输入框右下角新增权限模式下拉（沿用模型下拉样式，完全权限用警示色），切到完全权限走 `uiConfirm` 二次确认，运行中切换提示「下一次发送时生效」；切换会话时按服务端记录的模式回填。
+  - 顺带修复：切换模式/模型重建 query 时，被中断的旧 query 会把 `Operation aborted` 写回记录并覆盖新 query 状态（`r.query !== q` 的身份判断）；独立运行且 `CLAUDE_BASE_PATH` 带前缀时 WebSocket 升级路径不匹配。
+  - 验证：`node --test test/*.test.cjs` 9 项通过；真实端到端（5 个用例）——只读档 Write 被 hook 拒绝、只读档 Bash 写入被系统沙箱拒绝、工作区档 Write/Bash 区内成功而工作区外被拒、完全权限档工作区外写入成功，且不再出现 `Operation aborted`；Playwright 打开 `/claude` 确认下拉三档、完全权限警示色与确认弹层。
+  - 已知边界：只覆盖内置写类工具与 Bash，第三方/MCP 工具自行写盘不在判定范围；Windows 无沙箱后端，受限两档会报错。
+
+### 修复（Fixes）
+
+- **dsh-claude-code-web：AI Agent 的 `AskUserQuestion` 待确认事项未展示，模型反馈「未收到选择」并自行按推荐值继续**
+  - 根因：工作台把 `AskUserQuestion` 当成普通工具授权，卡片只有「允许 / 始终允许 / 拒绝」，且 `answer-control` 的 allow 分支只回传 `{behavior:'allow', updatedInput: 原input}`，从不带 `answers`。Claude Code CLI 的 `AskUserQuestion.checkPermissions` 要求宿主在 `updatedInput.answers` 里回传用户选择；缺少 answers 会生成 `tool_result: "The user did not answer the questions."`，模型随即按推荐值继续（实测两个会话均如此）。
+  - 修复（server.cjs）：识别 `AskUserQuestion` 并在 control 消息上带 `kind:'ask'` / `questions`；新增 `buildQuestionUpdatedInput()` 按 CLI 契约清洗并回传 `answers`；无 answers 的 allow 直接拒绝、「始终允许」对提问禁用、提问永不进入 sessionRules（避免后续提问被静默放行）；提交结果回写卡片便于回溯。
+  - 修复（client.js）：新增 `QuestionCard`，把每个问题渲染成单选 / 多选 / Other 自定义输入 / 文本输入，校验全部作答后提交；未回答的待确认事项以 sticky 卡片置顶（不受消息分页影响），并从「全部允许」批量操作中排除；明确提供「跳过，不回答」并提示后果。
+  - 验证：两文件 `node --check` 通过；`buildQuestionUpdatedInput` 纯函数断言；以 `Module._compile` 注入模块作用域验证 `makeCanUseTool` → `answerControl` 全链路（无 answers 不放行、带 answers 回传契约、普通工具授权行为不变）。补丁同时以三路合并叠加到本机运行中的插件副本，保留其 state-poll / PATH 独有改动。
+- **dsh-claude-code-web：待确认选择框高度太窄、选项挤在内部滚动区（会话【代码开发-需求变更】兔喜快递柜销售实测反馈）**
+  - 根因：待确认卡片放在消息滚动区 `ccw-msgs` 里并设 `max-height:62%` + `overflow-y:auto` + `position:sticky`，实际可视高度被压到面板消息区的 62%（约 150–340px），再扣掉头部/提示/按钮后，1 个带 3 个长描述选项的问题（自然高度约 312px）只能在很矮的内部区域里滚动，选项密集难以点选。
+  - 修复（client.js）：新增 `AskBar` 组件，把待确认事项从 `ccw-msgs` 移到 `ccw-main` 的独立层（`flex:none`，不再 sticky、不再按消息区百分比限高）；高度由内容决定，仅极端长内容才在 `min(72vh, 560px)` 内滚动；支持「收起 / 展开」，收起后只留一行标题，便于查看对话。
+  - 交互改进：选项改为独立块状（`padding:8px 10px`、`gap:5px`、边框 + hover / 选中高亮 `.sel`），单选框放大并跟随主题色，描述文字行高与对比度提升，问题区留白加大；提示文案精简。
+  - 验证：源码与运行副本两文件 `node --check` 通过、CSS 模板完整、锚点替换各命中 1 次；已确认 `max-height:62%` / sticky / 消息区内旧 askbar 块全部移除，`AskBar` 挂载与定义各 1 处。
+
 ## [v0.1.3] - 2026-11-13
 
 本次集中在 **macOS Desktop 下自定义 Client 浮层的窗口拖动区域**：修复 DSH 0.2.2-rc.1 的破坏性变更导致浮层控件点击被窗口拖拽吞掉的问题；同时把线上已运行一段时间的 `dsh-updchk` shell API 迁移回流仓库。
