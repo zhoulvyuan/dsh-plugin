@@ -38,9 +38,23 @@ function apply(ctx) {
 
   // 宿主的请求准入：存在就复用（与核心 API 相同的 Host/Origin 与会话校验），
   // 不存在则退回 server.cjs 自带的 loopback 信任检查。
+  //
+  // 注意读法：cordis 里访问未声明 inject 的服务会抛
+  // `cannot get property "xxx" without inject`，所以这里不能直接写 ctx.connection；
+  // 走 ctx.reflect.get()（主动跳过 inject 约束）读取，拿不到再退回属性访问。
+  // 这样既保住准入，又不把插件绑死在“必须有 connection 服务”的宿主版本上。
+  function serviceOf(name) {
+    try {
+      if (ctx.reflect && typeof ctx.reflect.get === 'function') {
+        const provided = ctx.reflect.get(name)
+        if (provided) return provided
+      }
+    } catch (e) {}
+    try { return ctx[name] } catch (e) { return null }
+  }
+
   function admission(req) {
-    let service = null
-    try { service = ctx.connection } catch (e) { service = null }
+    const service = serviceOf('connection')
     if (!service || typeof service.requestRejection !== 'function') return undefined
     return service.requestRejection(req)
   }

@@ -214,3 +214,39 @@ test('host enforces Connection admission before all handlers and exposes no WS',
   handler({}, res); assert.equal(handled, 1)
   cleanup(); assert.equal(disposed, 2)
 })
+
+// connection 故意不写进 inject（兼容没有该服务的 DSH 版本），cordis 直接访问会抛
+// `cannot get property "connection" without inject`，因此必须走 ctx.reflect.get()。
+// 这里模拟只有 reflect 能拿到 connection 的宿主，确认准入仍然生效。
+test('host admission resolves connection through ctx.reflect without inject', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'lib/index.js'), 'utf8')
+  const code = source.replace("import { createRequire } from 'node:module'", '')
+    .replace('const require = createRequire(import.meta.url)', 'const require = stubRequire')
+    .replace('export { apply, inject, name }', 'globalThis.host = { apply, inject, name }')
+  let handled = 0, handler
+  const app = { initServer() {}, handleRequest() { handled++ }, disposeServer() {} }
+  const stubRequire = () => app
+  stubRequire.resolve = () => '/virtual/server.cjs'
+  const sandbox = { stubRequire, process: { env: { CLAUDE_BASE_PATH: '/claude', CLAUDE_CODE_WEB_HOME: '/virtual' } } }
+  vm.runInNewContext(code, sandbox)
+
+  const asked = []
+  const ctx = {
+    // 故意不提供 ctx.connection：属性访问会抛错，只能经 reflect 读到
+    reflect: {
+      get(name) {
+        asked.push(name)
+        return name === 'connection' ? { requestRejection: () => 401 } : undefined
+      },
+    },
+    effect(fn) { return fn() },
+    webServer: { register(route) { handler = route.handler; return () => {} } },
+  }
+  sandbox.host.apply(ctx)
+  assert.equal(sandbox.host.inject.join(','), 'webServer')  // 跨 realm 数组不能用 deepEqual
+  const res = { writeHead(s) { this.status = s }, end() {} }
+  handler({}, res)
+  assert.equal(res.status, 401)
+  assert.equal(handled, 0)
+  assert.ok(asked.includes('connection'))
+})
