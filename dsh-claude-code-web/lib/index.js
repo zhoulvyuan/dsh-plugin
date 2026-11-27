@@ -53,10 +53,70 @@ function apply(ctx) {
     try { return ctx[name] } catch (e) { return null }
   }
 
+  // 默认与上游一致：/claude/* 叠加宿主 cookie 鉴权。
+  // 只有显式设置 CCW_ALLOW_LOOPBACK_ONLY=1 才放宽为「仅插件自身的 loopback 校验」——
+  // 独立窗口由系统浏览器打开，拿不到 dsh-auth-* cookie，需要放宽才能访问。
+  // 放宽后仍由 server.cjs 的 isTrustedRequest 把关：loopback 主机名 + Origin +
+  // Sec-Fetch-Site，跨源/跨站一律 403；且宿主只监听 127.0.0.1。
+  const ALLOW_LOOPBACK_ONLY = process.env.CCW_ALLOW_LOOPBACK_ONLY === '1'
+
   function admission(req) {
+    if (ALLOW_LOOPBACK_ONLY) return undefined
     const service = serviceOf('connection')
     if (!service || typeof service.requestRejection !== 'function') return undefined
     return service.requestRejection(req)
+  }
+
+  // 独立窗口：DSH Desktop 对 window.open 一律 deny，因此改由宿主半部调用系统
+  // 默认浏览器打开同一份 /claude/ 页面。所有调用结果写日志，便于没有 Console 时排查。
+  function detachLog(line) {
+    try {
+      const fs2 = require('node:fs')
+      const path2 = require('node:path')
+      // server.cjs 的数据目录同样以 CLAUDE_CODE_WEB_HOME 优先、否则 ~/.claude-code-web
+      const dir = process.env.CLAUDE_CODE_WEB_HOME || path2.join(require('node:os').homedir(), '.claude-code-web')
+      fs2.mkdirSync(dir, { recursive: true })
+      fs2.appendFileSync(path2.join(dir, 'open-detached.log'), new Date().toISOString() + ' ' + line + '\n')
+    } catch (e) {}
+  }
+
+  function openDetachedInBrowser(req, res) {
+    const reply = (code, payload) => {
+      try {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
+        res.end(JSON.stringify(payload))
+      } catch (e) {}
+    }
+    let body = ''
+    req.on('data', (chunk) => { body += chunk; if (body.length > 8192) body = body.slice(0, 8192) })
+    req.on('end', () => {
+      let theme = 'light'
+      try { if (JSON.parse(body || '{}').theme === 'dark') theme = 'dark' } catch (e) {}
+      const host = String(req.headers.host || '')
+      // 桌面壳里 document 的 origin 是 dsh-app://app，客户端拼不出浏览器能识别的地址，
+      // 所以这里按请求的 Host 自行构造真实 http 地址；Host 必须是 loopback。
+      if (!host || !/^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) {
+        detachLog('rejected host=' + host)
+        return reply(400, { ok: false, error: 'unexpected host' })
+      }
+      const target = 'http://' + host + '/claude/?ccwDetached=1&ccwTheme=' + theme
+      detachLog('target=' + target)
+      try {
+        const { spawn } = require('node:child_process')
+        const spec = process.platform === 'win32'
+          ? ['cmd', ['/c', 'start', '', target]]
+          : process.platform === 'darwin' ? ['open', [target]] : ['xdg-open', [target]]
+        const child = spawn(spec[0], spec[1], { detached: true, stdio: 'ignore', windowsHide: true })
+        child.on('error', (error) => detachLog('spawn error ' + String(error && error.message || error)))
+        child.unref()
+        detachLog('spawned ' + spec[0] + ' ' + target)
+        return reply(200, { ok: true, opened: target })
+      } catch (error) {
+        detachLog('throw ' + String(error && error.message || error))
+        return reply(500, { ok: false, error: String(error && error.message || error) })
+      }
+    })
+    req.on('error', () => reply(400, { ok: false }))
   }
 
   ctx.effect(() => {
@@ -69,6 +129,9 @@ function apply(ctx) {
           res.writeHead(rejection, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
           res.end(rejection === 401 ? 'Unauthorized' : 'Forbidden')
           return
+        }
+        if (req.method === 'POST' && new URL(req.url, 'http://localhost').pathname.endsWith('/api/open-detached')) {
+          return openDetachedInBrowser(req, res)
         }
         return handleRequest(req, res)
       },

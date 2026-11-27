@@ -61,6 +61,38 @@ const SANDBOX_MODE_LABELS = { 'read-only': '仅可查看', 'workspace-write': '�
 // 旧客户端直接传 SDK 原生 permissionMode，一律按「完全权限」处理（不改变既有行为）
 const SDK_PERMISSION_MODES = ['default', 'acceptEdits', 'plan', 'bypassPermissions', 'dontAsk', 'auto']
 
+// ── Claude 工作模式（对齐 VS Code Claude 插件 Modes 面板）────────────────────
+// 与上面沙箱三档是**两个独立维度**：沙箱档决定「能写到哪」，工作模式决定「何时问你」。
+// 直接映射 SDK 原生 PermissionMode：
+//   default      Manual              每次危险操作都要你确认
+//   acceptEdits  Edit automatically  自动接受文件编辑，其它危险操作仍会问
+//   plan         Plan                只读探查并给出方案，不执行改动
+//   auto         Auto                由模型分类器判定，通过安全检查就放行，风险高的才暂停
+// bypassPermissions / dontAsk 不放进 UI：前者需要 allowDangerouslySkipPermissions，
+// 后者非预批准即拒绝，都会让「沙箱三档」的限制语义变得不可预期。
+const CLAUDE_MODES = ['default', 'acceptEdits', 'plan', 'auto']
+const DEFAULT_CLAUDE_MODE = 'default'
+const CLAUDE_MODE_LABELS = {
+  default: 'Manual',
+  acceptEdits: 'Edit automatically',
+  plan: 'Plan',
+  auto: 'Auto',
+}
+function normalizeClaudeMode(v) {
+  if (typeof v === 'string' && CLAUDE_MODES.indexOf(v) !== -1) return v
+  return DEFAULT_CLAUDE_MODE
+}
+
+// ── 推理程度（Effort，对齐 VS Code Claude 插件的 Effort）──────────────────────
+// 空字符串表示「不指定」，交由模型用自己的默认档（多数模型默认 high）。
+// 直接映射 SDK options.effort；'xhigh' / 'max' 仅部分模型支持，其余会自动回退。
+const CLAUDE_EFFORTS = ['', 'low', 'medium', 'high', 'xhigh', 'max']
+const CLAUDE_EFFORT_LABELS = { '': '默认', low: '低', medium: '中', high: '高', xhigh: '极高', max: '最大' }
+function normalizeClaudeEffort(v) {
+  if (typeof v === 'string' && CLAUDE_EFFORTS.indexOf(v) !== -1) return v
+  return ''
+}
+
 function normalizeSandboxMode(v) {
   if (typeof v === 'string' && SANDBOX_MODES.indexOf(v) !== -1) return v
   return DEFAULT_SANDBOX_MODE
@@ -345,6 +377,10 @@ function newRecord(sandboxMode, cwd) {
     // sandboxMode + 宿主闸门实现，保留 permissionMode 仅为兼容既有消费方。
     permissionMode: 'default',
     sandboxMode: normalizeSandboxMode(sandboxMode),
+    // 工作模式：独立于沙箱三档，决定 SDK 何时询问/自动放行
+    claudeMode: DEFAULT_CLAUDE_MODE,
+    // 推理程度：'' = 不指定（用模型默认）
+    claudeEffort: '',
     cwd: cwd || workspaceDir,
     status: 'idle',
     model: '',
@@ -579,6 +615,8 @@ function plainSession(r) {
     model: r.model,
     permissionMode: r.permissionMode,
     mode: r.sandboxMode || DEFAULT_SANDBOX_MODE,
+    claudeMode: r.claudeMode || DEFAULT_CLAUDE_MODE,
+    claudeEffort: r.claudeEffort || '',
     error: r.error,
     startedAt: r.startedAt,
     durationMs: r.durationMs,
@@ -987,8 +1025,9 @@ function ensureQuery(r) {
     r.inputQueue = AsyncQueue()
     const opts = {
       cwd: r.cwd,
-      // 三档都保持 SDK 原生 default：危险操作照旧弹授权卡，限制来自 sandbox + 闸门
-      permissionMode: 'default',
+      // 工作模式直接映射 SDK permissionMode（Manual/acceptEdits/plan/auto）；
+      // 沙箱三档的限制另由 sandbox + PreToolUse 闸门 + canUseTool 施加。
+      permissionMode: r.claudeMode || DEFAULT_CLAUDE_MODE,
       includePartialMessages: true,
       canUseTool: makeCanUseTool(r),
       pathToClaudeCodeExecutable: CLAUDE_BIN,
@@ -1000,11 +1039,15 @@ function ensureQuery(r) {
     // 受限档位才注册 hook：完全权限不需要每次工具调用多一次 control 往返
     if (sbOpts) opts.hooks = { PreToolUse: [{ hooks: [makeModeGuard(r)] }] }
     if (r.model) opts.model = r.model
+    // 只在显式选择时才传，避免覆盖模型自己的默认档
+    if (r.claudeEffort) opts.effort = r.claudeEffort
     if (r.sessionId) opts.resume = r.sessionId
     r.abortController = new AbortController()
     opts.abortController = r.abortController
     r._procPermMode = r.permissionMode || 'default'
     r._procMode = r.sandboxMode || DEFAULT_SANDBOX_MODE
+    r._procClaudeMode = r.claudeMode || DEFAULT_CLAUDE_MODE
+    r._procClaudeEffort = r.claudeEffort || ''
     r._procModel = r.model || ''
     const q = query({ prompt: r.inputQueue, options: opts })
     const myAbort = r.abortController
@@ -1062,6 +1105,8 @@ function newSession(args) {
     try { if (fs.statSync(abs).isDirectory()) cwd = abs } catch (e) {}
   }
   const r = newRecord(a.mode !== undefined ? a.mode : a.permissionMode, cwd)
+  r.claudeMode = normalizeClaudeMode(a.claudeMode)
+  r.claudeEffort = normalizeClaudeEffort(a.claudeEffort)
   runtime.set(r.key, r)
   activeId = r.key
   markDirty()
@@ -1093,10 +1138,18 @@ function sendMessage(args) {
   const newModel = a.model !== undefined ? (a.model || '') : (r.model || '')
   const modeChanged = (r._procMode || DEFAULT_SANDBOX_MODE) !== mode
   const modelChanged = (r._procModel || '') !== newModel
-  if (r.query && (modeChanged || modelChanged)) {
+  // 工作模式同样是 spawn 期参数（SDK permissionMode），变更要重建 query 才生效
+  const claudeMode = normalizeClaudeMode(a.claudeMode !== undefined ? a.claudeMode : (r.claudeMode || DEFAULT_CLAUDE_MODE))
+  const claudeModeChanged = (r._procClaudeMode || DEFAULT_CLAUDE_MODE) !== claudeMode
+  // 推理程度也是 query 创建期参数（SDK options.effort），变了同样要重建
+  const claudeEffort = normalizeClaudeEffort(a.claudeEffort !== undefined ? a.claudeEffort : (r.claudeEffort || ''))
+  const claudeEffortChanged = (r._procClaudeEffort || '') !== claudeEffort
+  if (r.query && (modeChanged || modelChanged || claudeModeChanged || claudeEffortChanged)) {
     killQuery(r)
   }
   r.sandboxMode = mode
+  r.claudeMode = claudeMode
+  r.claudeEffort = claudeEffort
   if (modeChanged) r.sessionRules = []   // 换了限制档位，旧的“始终允许”不再成立
   if (a.model !== undefined) r.model = a.model || ''
   if (!r.title) r.title = text.length > 40 ? text.slice(0, 40) : text

@@ -74,6 +74,28 @@ function build(React, opts) {
     const DEFAULT_SANDBOX_MODE = "danger-full-access";
     const MODE_LABEL = SANDBOX_MODES.reduce(function (m, x) { m[x.id] = x.label; return m; }, {});
 
+// Claude 工作模式（对齐 VS Code Claude 插件 Modes 面板）。服务端映射到 SDK
+// permissionMode；与上面的沙箱三档互不影响：一个管「何时问」，一个管「能写哪」。
+const CLAUDE_MODES = [
+  { id: "default", label: "Manual", title: "每次危险操作都先问你（默认）" },
+  { id: "acceptEdits", label: "Edit automatically", title: "自动接受文件编辑，其它危险操作仍会询问" },
+  { id: "plan", label: "Plan", title: "只探查代码并给出方案，不做任何改动" },
+  { id: "auto", label: "Auto", title: "通过安全检查的操作自动放行，风险高的才暂停" },
+];
+const DEFAULT_CLAUDE_MODE = "default";
+const CLAUDE_MODE_LABEL = CLAUDE_MODES.reduce(function (m, x) { m[x.id] = x.label; return m; }, {});
+
+// 推理程度（Effort）：空串表示不指定，用模型默认档。
+const CLAUDE_EFFORTS = [
+  { id: "", label: "默认", title: "不指定，用模型自己的默认档（多数模型为 high）" },
+  { id: "low", label: "低", title: "最少思考，响应最快" },
+  { id: "medium", label: "中", title: "适度思考" },
+  { id: "high", label: "高", title: "较深的推理" },
+  { id: "xhigh", label: "极高", title: "比高更深（仅部分模型支持，其余会回退到 high）" },
+  { id: "max", label: "最大", title: "最大推理投入（仅部分模型支持）" },
+];
+const CLAUDE_EFFORT_LABEL = CLAUDE_EFFORTS.reduce(function (m, x) { m[x.id] = x.label; return m; }, {});
+
     // 全局入口：侧边栏底部按钮（sidebar.footer.action）<-> 悬浮面板（shell.overlay）共享显隐状态
     let panelOpen = STANDALONE;
     const openListeners = new Set();
@@ -127,7 +149,22 @@ function build(React, opts) {
       }
     }
     function openDetachedWindow() {
-      try { window.open(detachedWindowUrl(), "_blank"); } catch (_) {}
+      const target = detachedWindowUrl();
+      let opened = null;
+      try { opened = window.open(target, "_blank"); } catch (_) { opened = null; }
+      if (opened) return;
+      // 宿主拒绝应用内开窗（DSH Desktop 一律 deny）：交给宿主半部用系统默认浏览器打开。
+      // 不能把 target 传下去：桌面壳里 document 的 origin 是 dsh-app://app，系统浏览器
+      // 不认识这个协议；改由宿主半部按请求 Host 构造真实 http 地址。
+      var theme = "light";
+      try { theme = detectDark() ? "dark" : "light"; } catch (_) {}
+      try {
+        fetch(API + "/open-detached", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ theme: theme }),
+        }).catch(function () {});
+      } catch (_) {}
     }
     let detachClosedSent = false;
     function broadcastDetachedClosed() {
@@ -574,6 +611,8 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
 .ccw-composer .ccw-mode.ccw-mode-danger { color:var(--ccw-warn); border-color:var(--ccw-warn); }
 .ccw-composer .ccw-mode.ccw-mode-danger:hover { color:var(--ccw-warn); border-color:var(--ccw-warn); }
 .ccw-narrow .ccw-composer .ccw-mode { max-width:112px; }
+.ccw-composer .ccw-effort { max-width:82px; padding-right:20px; }
+.ccw-narrow .ccw-composer .ccw-effort { max-width:62px; padding-right:18px; }
 .ccw-sendbtn { flex:none; width:28px; height:28px; border-radius:50%; border:1px solid var(--ccw-accent); background:var(--ccw-accent); color:var(--ccw-accent-fg); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; padding:0; transition:background .12s, border-color .12s; }
 .ccw-sendbtn:hover { background:var(--ccw-accent-hover); border-color:var(--ccw-accent-hover); }
 .ccw-stopbtn { flex:none; height:26px; padding:0 9px; border-radius:6px; border:1px solid var(--ccw-border); background:var(--ccw-surface); color:var(--ccw-text-2); display:inline-flex; align-items:center; justify-content:center; gap:5px; font:inherit; font-size:11px; cursor:pointer; }
@@ -2142,6 +2181,8 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
       const [modelId, setModelId] = React.useState("");
       // 权限模式：默认「完全权限」= 旧版行为（不限制、危险操作弹卡），避免静默改变既有体验
       const [mode, setMode] = React.useState(DEFAULT_SANDBOX_MODE);
+      const [claudeMode, setClaudeMode] = React.useState(DEFAULT_CLAUDE_MODE);
+      const [claudeEffort, setClaudeEffort] = React.useState("");
       const lastModeSyncRef = React.useRef("");
       const [collapsed, setCollapsed] = React.useState(() => new Set());
       const [conn, setConn] = React.useState(false);
@@ -2465,6 +2506,10 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
         lastModeSyncRef.current = key;
         const m = snap.active && snap.active.mode;
         if (m && MODE_LABEL[m]) setMode(m);
+        const cm = snap.active && snap.active.claudeMode;
+        if (cm && CLAUDE_MODE_LABEL[cm]) setClaudeMode(cm);
+        const ce = (snap.active && snap.active.claudeEffort) || "";
+        if (CLAUDE_EFFORT_LABEL[ce] !== undefined) setClaudeEffort(ce);
       }, [activeSessionKey]);
 
       // 输入框初始高度
@@ -2601,7 +2646,7 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
         const images = imgs || [];
         stickRef.current = true;
         apiChecked("send", {
-          text: text, expanded: expanded, model: modelId, mode: mode, cwd: selWs,
+          text: text, expanded: expanded, model: modelId, mode: mode, claudeMode: claudeMode, claudeEffort: claudeEffort, cwd: selWs,
           images: images.length ? images : undefined,
         }).then(function (res) {
           if (!res) { setDraft(text); setPendingImages(images); return; } // 失败：还原文稿与图片
@@ -2707,7 +2752,7 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
       function onNew() {
         stickRef.current = true;
         if (drawerMode) setDrawerOpen(false);
-        apiChecked("new-session", { mode: mode, cwd: selWs });
+        apiChecked("new-session", { mode: mode, claudeMode: claudeMode, claudeEffort: claudeEffort, cwd: selWs });
       }
 
       // 权限模式切换：完全权限要二次确认；sandbox 是进程启动参数，所以运行中的
@@ -2722,6 +2767,25 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
         const st = snap && snap.active ? snap.active.status : "";
         const running = st === "running" || st === "starting";
         toast("权限模式已设为「" + (MODE_LABEL[next] || next) + "」" + (running ? "，将在下一次发送时生效" : ""), "ok");
+      }
+
+      // 工作模式切换：与权限档一样随下一次发送生效（SDK permissionMode 是 spawn 期参数）。
+      function pickClaudeMode(next) {
+        if (!next || next === claudeMode) return;
+        setClaudeMode(next);
+        const st = snap && snap.active ? snap.active.status : "";
+        const running = st === "running" || st === "starting";
+        toast("工作模式已设为「" + (CLAUDE_MODE_LABEL[next] || next) + "」" + (running ? "，将在下一次发送时生效" : ""), "ok");
+      }
+
+      // 推理程度切换：同样是 query 创建期参数，下一次发送生效。
+      function pickClaudeEffort(next) {
+        const v = next === undefined || next === null ? "" : String(next);
+        if (v === claudeEffort) return;
+        setClaudeEffort(v);
+        const st = snap && snap.active ? snap.active.status : "";
+        const running = st === "running" || st === "starting";
+        toast("推理程度已设为「" + (CLAUDE_EFFORT_LABEL[v] || v) + "」" + (running ? "，将在下一次发送时生效" : ""), "ok");
       }
 
       function onSelectWs(w) {
@@ -3351,6 +3415,28 @@ body[data-ds-dark-theme] .ccw-toggle { --ccw-toggle-accent:#E08A6D; --ccw-toggle
               React.createElement("span", { className: "ccw-composer-hint" },
                 React.createElement(CcwIcon, { name: "slash", size: 11 }), "指令"),
               React.createElement("div", { style: { flex: 1 } }),
+              React.createElement("select", {
+                className: "ccw-model ccw-mode",
+                value: claudeMode,
+                onChange: function (e) { pickClaudeMode(e.target.value); },
+                "aria-label": "选择工作模式",
+                title: "工作模式：Manual / Edit automatically / Plan / Auto",
+              },
+                CLAUDE_MODES.map(function (m) {
+                  return React.createElement("option", { key: m.id, value: m.id, title: m.title }, m.label);
+                }),
+              ),
+              React.createElement("select", {
+                className: "ccw-model ccw-effort",
+                value: claudeEffort,
+                onChange: function (e) { pickClaudeEffort(e.target.value); },
+                "aria-label": "选择推理程度",
+                title: "推理程度（Effort）：默认 / 低 / 中 / 高 / 极高 / 最大",
+              },
+                CLAUDE_EFFORTS.map(function (m) {
+                  return React.createElement("option", { key: m.id, value: m.id, title: m.title }, m.label);
+                }),
+              ),
               React.createElement("select", {
                 className: "ccw-model ccw-mode" + (mode === "danger-full-access" ? " ccw-mode-danger" : ""),
                 value: mode,
